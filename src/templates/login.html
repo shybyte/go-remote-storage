@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Allow Remote Storage Access?</title>
+    <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+<h1>Allow Remote Storage Access?</h1>
+
+<form action="" method="post">
+    A web app from server&nbsp;<strong>{{ .clientID }}</strong>
+    requested the following rights:
+    <ul>
+    {{range .scopes}}
+        <li>{{.}}</li>
+    {{end}}
+    </ul>
+
+    <label>Username: {{.username}}</label>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" autofocus/>
+    <input type="submit" value="Allow"/>
+</form>
+
+</body>
+</html>

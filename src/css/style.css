@@ -1,0 +1,20 @@
+h1 {
+    text-align: center;
+}
+
+label,input {
+    display: block;
+}
+
+input {
+    margin-bottom: 0.5em;
+}
+
+input[type=text],input[type=password] {
+    width: 50%;
+}
+
+form {
+    width: 20em;
+    margin: 2em auto;
+}
