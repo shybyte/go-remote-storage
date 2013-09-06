@@ -8,6 +8,9 @@ import (
 	"html/template"
 	"strings"
 	"libs/uniuri"
+	"io"
+	"io/ioutil"
+	"crypto/sha1"
 )
 
 type Scope struct {
@@ -17,10 +20,9 @@ type Scope struct {
 
 func (s Scope) String() string {
 	if (s.write) {
-		return s.path+" (Full Access)"
-	} else {
-		return s.path;
+		return s.path + " (Full Access)"
 	}
+	return s.path
 }
 
 type Authorization struct {
@@ -44,14 +46,18 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Path[len("/auth/"):]
 	query := r.URL.Query()
 	scopes := parseScopes(query["scope"][0])
+	wrongPassword := false
 
 	if (r.Method == "POST") {
 		r.ParseForm()
 		fmt.Println(r.Form)
-		scopes2 := []Scope{}
-		authorizationByBearer[uniuri.NewLen(10)] = Authorization{username, query["client_id"][0], scopes2}
-		http.Redirect(w, r , "http://blog.fefe.de", 301)
-		return
+		if (isPasswordValid(username,r.Form["password"][0])) {
+			authorizationByBearer[uniuri.NewLen(10)] = Authorization{username, query["client_id"][0], scopes}
+			http.Redirect(w, r , "http://blog.fefe.de", 301)
+			return
+		} else {
+			wrongPassword = true
+		}
 	}
 
 	t, _ := template.ParseFiles("src/templates/login.html")
@@ -59,11 +65,25 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 			"username": username,
 			"scopes": scopes,
 			"clientID": query["client_id"][0],
+			"wrongPassword": wrongPassword,
 		})
 }
 
+func isPasswordValid(username string,password string) bool {
+	passwordFileBuf,_ := ioutil.ReadFile("data/"+username+"/.gors/password-sha1.txt")
+	expectedPasswordSha1 := string(passwordFileBuf)
+	return expectedPasswordSha1[:40] == sha1Sum(password)
+}
+
+func sha1Sum(s string) string {
+	sha1Hash := sha1.New()
+	io.WriteString(sha1Hash, s)
+	return fmt.Sprintf("%x", sha1Hash.Sum(nil))
+}
+
+
 func parseScopes(scopesString string) []Scope {
-	scopeStrings := strings.Split(scopesString," ")
+	scopeStrings := strings.Split(scopesString, " ")
 	scopes := make([]Scope, len(scopeStrings))
 	for i, scopeString := range scopeStrings {
 		parts := strings.Split(scopeString, ":")

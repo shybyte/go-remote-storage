@@ -18,3 +18,7 @@ form {
     width: 20em;
     margin: 2em auto;
 }
+
+.errorMessage {
+    color: red;
+}
