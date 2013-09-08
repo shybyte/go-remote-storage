@@ -45,4 +45,52 @@ def test_confirm_permission_with_password_and_redirect_to_app():
 	assert redirectUrl.startswith(expectedRedirectUrlPrefix)
 	assert len(redirectUrl[len(expectedRedirectUrlPrefix):])>=10
 
+def test_storage_cors():
+	conn = httplib.HTTPConnection('localhost:8888')
+	conn.request("OPTIONS", "/storage/user1/myfavoritedrinks/")
+	r = conn.getresponse()
+	assert r.status == 200;
+	assert r.getheader('Access-Control-Allow-Origin') == "*"
+
+def test_storage_cors():
+	r = makeRequest("/storage/user1/myfavoritedrinks/",'OPTIONS')
+	assert r.status == 200;
+	assert r.getheader('Access-Control-Allow-Origin') == "*"
+
+def test_storage_directory_listing_needs_bearer_token():
+	r = makeRequest("/storage/user1/myfavoritedrinks/")
+	assert r.status == 401;
+
+def test_storage_directory_listing_needs_valid_bearer_token():
+	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',{'Bearer': "invalid"})
+	assert r.status == 401;
+	
+def test_storage_directory_listing_needs_bearer_token_matching_user():
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/otheruser/myfavoritedrinks/",'GET',{'Bearer': bearerToken})
+	assert r.status == 401;	
+
+def test_storage_directory_listing():
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',{'Bearer': bearerToken})
+	assert r.status == 200;
+
+
+# utils
+def requestBearerToken():
+	values = {'password' : 'password'}
+	data = urllib.urlencode(values)
+	headers = {"Content-type": "application/x-www-form-urlencoded"}	
+	conn = httplib.HTTPConnection('localhost:8888')
+	conn.request("POST", "/auth/user1"+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope=myfavoritedrinks%3Arw&response_type=token",data,headers)
+	r = conn.getresponse()		
+	redirectUrl = r.getheader('Location')
+	expectedRedirectUrlPrefix = 'https://myfavoritedrinks.5apps.com/#access_token='
+	return redirectUrl[len(expectedRedirectUrlPrefix):]
+
+
+def makeRequest(path,method="GET",headers={}):
+	conn = httplib.HTTPConnection('localhost:8888')
+	conn.request(method, path,"",headers)
+	return conn.getresponse()
 	

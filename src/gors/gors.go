@@ -33,9 +33,13 @@ type Authorization struct {
 	bearerToken   string
 }
 
+
+var dataPath = "data/"
+
 func StartServer() {
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
 	http.HandleFunc("/auth/", handleAuth)
+	http.HandleFunc("/storage/", handleStorage)
 	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("src/css"))))
 	err := http.ListenAndServe(":8888", nil)
 	if err != nil {
@@ -43,9 +47,46 @@ func StartServer() {
 	}
 }
 
+/* ------------------------------------ Storage ----------------------------- */
+
+func handleStorage(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w, r)
+
+	if (r.Method == "OPTIONS") {
+		return;
+	}
+
+	// no Bearer Token ?
+	if len(r.Header["Bearer"]) == 0 {
+		w.WriteHeader(401)
+		return;
+	}
+
+	// invalid Bearer Token ?
+	authorization := authorizationByBearer[r.Header["Bearer"][0]]
+	if authorization == nil || !strings.HasPrefix(r.URL.Path,"/storage/"+authorization.username+"/") {
+		w.WriteHeader(401)
+		return;
+	}
+
+	files,err := ioutil.ReadDir(getUserDataPath(authorization.username))
+	fmt.Println("Files:")
+	fmt.Println(err)
+	fmt.Println(files)
+	for _,f := range files  {
+		fmt.Println(f.Name(),f.IsDir(),f.ModTime(),f.ModTime().Unix())
+	}
+
+	w.WriteHeader(200)
+}
+
+func getUserDataPath(username string) string {
+	return dataPath+username+"/.gors/data"
+}
+
 /* ------------------------------------ Auth ----------------------------- */
 
-var authorizationByBearer = make(map[string]Authorization)
+var authorizationByBearer = make(map[string]*Authorization)
 
 func handleAuth(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(authorizationByBearer)
@@ -59,7 +100,7 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(r.Form)
 		if (isPasswordValid(username, r.Form["password"][0])) {
 			authorization := Authorization{username, query["client_id"][0], scopes, uniuri.NewLen(10)}
-			authorizationByBearer[authorization.bearerToken] = authorization
+			authorizationByBearer[authorization.bearerToken] = &authorization
 			http.Redirect(w, r , query["redirect_uri"][0] + "#access_token=" + authorization.bearerToken, 301)
 			return
 		} else {
@@ -77,7 +118,7 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func isPasswordValid(username string, password string) bool {
-	passwordFileBuf, _ := ioutil.ReadFile("data/" + username + "/.gors/password-sha1.txt")
+	passwordFileBuf, _ := ioutil.ReadFile(dataPath + username + "/.gors/password-sha1.txt")
 	expectedPasswordSha1 := string(passwordFileBuf)
 	return expectedPasswordSha1[:40] == sha1Sum(password)
 }
@@ -142,6 +183,7 @@ func createWebfingerJson(host, username string) string {
 }
 
 /* ------------------------------------ CORS ------------------------ */
+
 func enableCORS(w http.ResponseWriter, r *http.Request) {
 	var origin string
 	if len(r.Header["origin"]) > 0 {
