@@ -2,6 +2,7 @@ package gors
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"encoding/json"
 	"regexp"
@@ -26,21 +27,26 @@ func (s Scope) String() string {
 }
 
 type Authorization struct {
-	username string
-	clientId string
-	scopes   []Scope
+	username      string
+	clientId      string
+	scopes        []Scope
+	bearerToken   string
 }
-
-var authorizationByBearer = make(map[string]Authorization)
 
 func StartServer() {
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
 	http.HandleFunc("/auth/", handleAuth)
 	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("src/css"))))
-	http.ListenAndServe(":8888", nil)
+	err := http.ListenAndServe(":8888", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
-/* ------------------ Auth ----------------------------- */
+/* ------------------------------------ Auth ----------------------------- */
+
+var authorizationByBearer = make(map[string]Authorization)
+
 func handleAuth(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(authorizationByBearer)
 	username := r.URL.Path[len("/auth/"):]
@@ -51,9 +57,10 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 	if (r.Method == "POST") {
 		r.ParseForm()
 		fmt.Println(r.Form)
-		if (isPasswordValid(username,r.Form["password"][0])) {
-			authorizationByBearer[uniuri.NewLen(10)] = Authorization{username, query["client_id"][0], scopes}
-			http.Redirect(w, r , "http://blog.fefe.de", 301)
+		if (isPasswordValid(username, r.Form["password"][0])) {
+			authorization := Authorization{username, query["client_id"][0], scopes, uniuri.NewLen(10)}
+			authorizationByBearer[authorization.bearerToken] = authorization
+			http.Redirect(w, r , query["redirect_uri"][0] + "#access_token=" + authorization.bearerToken, 301)
 			return
 		} else {
 			wrongPassword = true
@@ -69,8 +76,8 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 		})
 }
 
-func isPasswordValid(username string,password string) bool {
-	passwordFileBuf,_ := ioutil.ReadFile("data/"+username+"/.gors/password-sha1.txt")
+func isPasswordValid(username string, password string) bool {
+	passwordFileBuf, _ := ioutil.ReadFile("data/" + username + "/.gors/password-sha1.txt")
 	expectedPasswordSha1 := string(passwordFileBuf)
 	return expectedPasswordSha1[:40] == sha1Sum(password)
 }
@@ -80,7 +87,6 @@ func sha1Sum(s string) string {
 	io.WriteString(sha1Hash, s)
 	return fmt.Sprintf("%x", sha1Hash.Sum(nil))
 }
-
 
 func parseScopes(scopesString string) []Scope {
 	scopeStrings := strings.Split(scopesString, " ")
@@ -96,13 +102,25 @@ func parseScopes(scopesString string) []Scope {
 	return scopes
 }
 
-/* ------------------ Webfinger ------------------------ */
+/* ------------------------------------ Webfinger ------------------------ */
+
 
 var RESOURCE_PARA_PATTERN = regexp.MustCompile(`^acct:(.+)@(.+)$`)
 
 func handleWebfinger(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w, r)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Println(r)
 	username := RESOURCE_PARA_PATTERN.FindStringSubmatch(r.URL.Query()["resource"][0])[1]
-	fmt.Fprintf(w, createWebfingerJson(r.Host, username))
+	fmt.Fprintf(w, createWebfingerJson(getOwnHost(r), username))
+}
+
+func getOwnHost(r *http.Request) string {
+	if len(r.Header["X-Forwarded-Host"]) > 0 {
+		return r.Header["X-Forwarded-Host"][0]
+	} else {
+		return r.Host
+	}
 }
 
 func createWebfingerJson(host, username string) string {
@@ -121,4 +139,18 @@ func createWebfingerJson(host, username string) string {
 		},
 	})
 	return string(b)
+}
+
+/* ------------------------------------ CORS ------------------------ */
+func enableCORS(w http.ResponseWriter, r *http.Request) {
+	var origin string
+	if len(r.Header["origin"]) > 0 {
+		origin = r.Header["origin"][0]
+	} else {
+		origin = "*"
+	}
+	header := w.Header()
+	header.Add("access-control-allow-origin", origin)
+	header.Add("access-control-allow-headers", "content-type, authorization, origin")
+	header.Add("access-control-allow-methods", "GET, PUT, DELETE")
 }
