@@ -1,5 +1,4 @@
 TODO:
-- load data
 - save data
 - public special handling
 - change password hash
@@ -10,3 +9,4 @@ Done:
 - create test data dir
 - test should restore test data dir in temporary folder
 - finished directory listing
+- load data

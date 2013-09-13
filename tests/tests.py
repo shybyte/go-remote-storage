@@ -89,12 +89,19 @@ def test_storage_directory_listing(givenTestStorage):
 	assert dirList['file.txt']
 	assert dirList['dir/']
 
-def test_storage_directory_listing_for_non_existing_fir(givenTestStorage):
+def test_storage_directory_listing_for_non_existing_dir(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/notextisting/",'GET',{'Bearer': bearerToken})	
 	assert r.status == 404;
 	dirList = json.loads(r.read())
 	assert len(dirList) == 0
+	
+def test_storage_read_file(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/file.txt",'GET',{'Bearer': bearerToken})	
+	assert r.status == 200
+	fileContent = r.read()
+	assert fileContent == "text"
 
 
 # utils

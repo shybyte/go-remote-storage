@@ -38,7 +38,6 @@ type Authorization struct {
 var dataPath string
 
 func StartServer(storageDir string, port int) {
-	fmt.Println(storageDir)
 	dataPath = storageDir
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
 	http.HandleFunc("/auth/", handleAuth)
@@ -79,7 +78,16 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 		return;
 	}
 
-	files, err := ioutil.ReadDir(getUserDataPath(authorization.username) + r.URL.Path[len(pathPrefix) - 1:])
+	pathInUserStorage := r.URL.Path[len(pathPrefix) - 1:]
+	if strings.HasSuffix(pathInUserStorage, "/") {
+		handleDirectoryListing(w, authorization, pathInUserStorage)
+	} else {
+		handleFile(w, r, authorization, pathInUserStorage)
+	}
+}
+
+func handleDirectoryListing(w http.ResponseWriter, authorization *Authorization, pathInUserStorage string) {
+	files, err := ioutil.ReadDir(getUserDataPath(authorization.username) + pathInUserStorage)
 
 	// Handle non existing and empty dirs
 	if err != nil || len(files) == 0 {
@@ -97,7 +105,17 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "\n")
 	}
 	fmt.Fprint(w, "}\n")
+}
 
+func handleFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
+	f, err := os.Open(getUserDataPath(authorization.username) + pathInUserStorage)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	fInfo,_ := f.Stat()
+	serveContent(w, r, fInfo.Name(), fInfo.ModTime(), fInfo.Size(), f)
 }
 
 func itemName(f os.FileInfo) string {
