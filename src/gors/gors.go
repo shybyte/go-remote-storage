@@ -115,7 +115,7 @@ func handleFile(w http.ResponseWriter, r *http.Request, authorization *Authoriza
 	}
 	defer f.Close()
 	fInfo,_ := f.Stat()
-	serveContent(w, r, fInfo.Name(), fInfo.ModTime(), fInfo.Size(), f)
+	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
 }
 
 func itemName(f os.FileInfo) string {
