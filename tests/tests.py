@@ -92,7 +92,7 @@ def test_storage_directory_listing(givenTestStorage):
 def test_storage_directory_listing_for_non_existing_fir(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/notextisting/",'GET',{'Bearer': bearerToken})	
-	assert r.status == 200;
+	assert r.status == 404;
 	dirList = json.loads(r.read())
 	assert len(dirList) == 0
 

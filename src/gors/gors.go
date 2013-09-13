@@ -71,33 +71,38 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(401)
 		return;
 	}
+
+	// is Bearer Token valid for URL/Path?
 	pathPrefix := "/storage/" + authorization.username + "/"
 	if !strings.HasPrefix(r.URL.Path, pathPrefix) {
 		w.WriteHeader(401)
 		return;
 	}
 
-	files, err := ioutil.ReadDir(getUserDataPath(authorization.username)+ r.URL.Path[len(pathPrefix)-1:])
-	w.WriteHeader(200)
-	fmt.Println("Files:")
-	fmt.Println(err)
-	fmt.Println(files)
+	files, err := ioutil.ReadDir(getUserDataPath(authorization.username) + r.URL.Path[len(pathPrefix) - 1:])
+
+	// Handle non existing and empty dirs
+	if err != nil || len(files) == 0 {
+		w.WriteHeader(404)
+	} else {
+		w.WriteHeader(200)
+	}
+
 	fmt.Fprint(w, "{\n")
 	for i, f := range files {
-		fmt.Println(f.Name(), f.IsDir(), f.ModTime(), f.ModTime().Unix())
 		fmt.Fprintf(w, `"%s":"%d"`, itemName(f), f.ModTime().Unix())
-		if i<len(files)-1 {
-			fmt.Fprintf(w,",")
+		if i < len(files) - 1 {
+			fmt.Fprintf(w, ",")
 		}
-		fmt.Fprintf(w,"\n")
+		fmt.Fprintf(w, "\n")
 	}
 	fmt.Fprint(w, "}\n")
 
 }
 
-func itemName(f os.FileInfo)  string{
+func itemName(f os.FileInfo) string {
 	if f.IsDir() {
-		return f.Name()+"/"
+		return f.Name() + "/"
 	}
 	return f.Name()
 }
