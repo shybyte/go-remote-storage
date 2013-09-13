@@ -3,8 +3,19 @@ import urllib
 import urllib2
 import httplib
 import json
+import shutil
+import os
+import pytest
 
-server = "http://localhost:8888"
+port = "8889"
+server = "http://localhost:"+port
+
+
+
+@pytest.fixture
+def givenTestStorage():
+    copy_and_overwrite("../storage-example","../tmp/test-storage")
+
 
 def test_get_webfinger():
 	request = urllib2.urlopen(server+"/.well-known/host-meta.json?resource=acct%3Ausername%40domain.net");
@@ -36,7 +47,7 @@ def test_confirm_permission_with_password_and_redirect_to_app():
 	data = urllib.urlencode(values)
 	headers = {"Content-type": "application/x-www-form-urlencoded",
             "Accept": "text/plain"}	
-	conn = httplib.HTTPConnection('localhost:8888')
+	conn = httplib.HTTPConnection('localhost:'+port)
 	conn.request("POST", "/auth/user1"+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope=myfavoritedrinks%3Arw&response_type=token",data,headers)
 	r = conn.getresponse()
 	print r.status, r.reason
@@ -46,7 +57,7 @@ def test_confirm_permission_with_password_and_redirect_to_app():
 	assert len(redirectUrl[len(expectedRedirectUrlPrefix):])>=10
 
 def test_storage_cors():
-	conn = httplib.HTTPConnection('localhost:8888')
+	conn = httplib.HTTPConnection('localhost:'+port)
 	conn.request("OPTIONS", "/storage/user1/myfavoritedrinks/")
 	r = conn.getresponse()
 	assert r.status == 200;
@@ -57,23 +68,26 @@ def test_storage_cors():
 	assert r.status == 200;
 	assert r.getheader('Access-Control-Allow-Origin') == "*"
 
-def test_storage_directory_listing_needs_bearer_token():
+def test_storage_directory_listing_needs_bearer_token(givenTestStorage):	
 	r = makeRequest("/storage/user1/myfavoritedrinks/")
 	assert r.status == 401;
 
-def test_storage_directory_listing_needs_valid_bearer_token():
+def test_storage_directory_listing_needs_valid_bearer_token(givenTestStorage):
 	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',{'Bearer': "invalid"})
 	assert r.status == 401;
 	
-def test_storage_directory_listing_needs_bearer_token_matching_user():
+def test_storage_directory_listing_needs_bearer_token_matching_user(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/otheruser/myfavoritedrinks/",'GET',{'Bearer': bearerToken})
 	assert r.status == 401;	
 
-def test_storage_directory_listing():
+def test_storage_directory_listing(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',{'Bearer': bearerToken})
+	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',{'Bearer': bearerToken})	
 	assert r.status == 200;
+	dirList = json.loads(r.read())
+	assert dirList['file.txt']
+	assert dirList['dir/']
 
 
 # utils
@@ -81,7 +95,7 @@ def requestBearerToken():
 	values = {'password' : 'password'}
 	data = urllib.urlencode(values)
 	headers = {"Content-type": "application/x-www-form-urlencoded"}	
-	conn = httplib.HTTPConnection('localhost:8888')
+	conn = httplib.HTTPConnection('localhost:'+port)
 	conn.request("POST", "/auth/user1"+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope=myfavoritedrinks%3Arw&response_type=token",data,headers)
 	r = conn.getresponse()		
 	redirectUrl = r.getheader('Location')
@@ -90,7 +104,11 @@ def requestBearerToken():
 
 
 def makeRequest(path,method="GET",headers={}):
-	conn = httplib.HTTPConnection('localhost:8888')
+	conn = httplib.HTTPConnection('localhost:'+port)
 	conn.request(method, path,"",headers)
 	return conn.getresponse()
 	
+def copy_and_overwrite(from_path, to_path):
+    if os.path.exists(to_path):
+        shutil.rmtree(to_path)
+    shutil.copytree(from_path, to_path)

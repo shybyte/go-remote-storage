@@ -8,10 +8,12 @@ import (
 	"regexp"
 	"html/template"
 	"strings"
+	"strconv"
 	"libs/uniuri"
 	"io"
 	"io/ioutil"
 	"crypto/sha1"
+	"os"
 )
 
 type Scope struct {
@@ -33,15 +35,16 @@ type Authorization struct {
 	bearerToken   string
 }
 
+var dataPath string
 
-var dataPath = "data/"
-
-func StartServer() {
+func StartServer(storageDir string, port int) {
+	fmt.Println(storageDir)
+	dataPath = storageDir
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
 	http.HandleFunc("/auth/", handleAuth)
 	http.HandleFunc("/storage/", handleStorage)
 	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("src/css"))))
-	err := http.ListenAndServe(":8888", nil)
+	err := http.ListenAndServe(":" + strconv.Itoa(port), nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,24 +67,42 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 
 	// invalid Bearer Token ?
 	authorization := authorizationByBearer[r.Header["Bearer"][0]]
-	if authorization == nil || !strings.HasPrefix(r.URL.Path,"/storage/"+authorization.username+"/") {
+	if authorization == nil || !strings.HasPrefix(r.URL.Path, "/storage/" + authorization.username + "/") {
 		w.WriteHeader(401)
 		return;
 	}
 
-	files,err := ioutil.ReadDir(getUserDataPath(authorization.username))
+	files, err := ioutil.ReadDir(getUserDataPath(authorization.username))
 	fmt.Println("Files:")
 	fmt.Println(err)
 	fmt.Println(files)
-	for _,f := range files  {
-		fmt.Println(f.Name(),f.IsDir(),f.ModTime(),f.ModTime().Unix())
+	fmt.Fprint(w, "{\n")
+	for i, f := range files {
+		fmt.Println(f.Name(), f.IsDir(), f.ModTime(), f.ModTime().Unix())
+		fmt.Fprintf(w, `"%s":"%d"`, itemName(f), f.ModTime().Unix())
+		if i<len(files)-1 {
+			fmt.Fprintf(w,",")
+		}
+		fmt.Fprintf(w,"\n")
 	}
-
+	fmt.Fprint(w, "}\n")
 	w.WriteHeader(200)
 }
 
+func itemName(f os.FileInfo)  string{
+	if f.IsDir() {
+		return f.Name()+"/"
+	} else {
+		return f.Name()
+	}
+}
+
 func getUserDataPath(username string) string {
-	return dataPath+username+"/.gors/data"
+	return userGorsDir(username) + "data"
+}
+
+func userGorsDir(username string) string {
+	return dataPath + "/" + username + "/.gors/"
 }
 
 /* ------------------------------------ Auth ----------------------------- */
@@ -118,7 +139,7 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func isPasswordValid(username string, password string) bool {
-	passwordFileBuf, _ := ioutil.ReadFile(dataPath + username + "/.gors/password-sha1.txt")
+	passwordFileBuf, _ := ioutil.ReadFile(userGorsDir(username) + "password-sha1.txt")
 	expectedPasswordSha1 := string(passwordFileBuf)
 	return expectedPasswordSha1[:40] == sha1Sum(password)
 }

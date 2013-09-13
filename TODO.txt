@@ -1,0 +1,10 @@
+TODO:
+- load data
+- save data
+- deb package
+
+Done:
+- configure path and port
+- create test data dir
+- test should restore test data dir in temporary folder
+- finished directory listing
