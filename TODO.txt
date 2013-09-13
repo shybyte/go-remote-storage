@@ -1,6 +1,8 @@
 TODO:
 - load data
 - save data
+- public special handling
+- change password hash
 - deb package
 
 Done:

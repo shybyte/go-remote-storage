@@ -83,11 +83,18 @@ def test_storage_directory_listing_needs_bearer_token_matching_user(givenTestSto
 
 def test_storage_directory_listing(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/module/",'GET',{'Bearer': bearerToken})	
 	assert r.status == 200;
 	dirList = json.loads(r.read())
 	assert dirList['file.txt']
 	assert dirList['dir/']
+
+def test_storage_directory_listing_for_non_existing_fir(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/notextisting/",'GET',{'Bearer': bearerToken})	
+	assert r.status == 200;
+	dirList = json.loads(r.read())
+	assert len(dirList) == 0
 
 
 # utils

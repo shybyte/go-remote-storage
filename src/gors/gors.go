@@ -67,12 +67,18 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 
 	// invalid Bearer Token ?
 	authorization := authorizationByBearer[r.Header["Bearer"][0]]
-	if authorization == nil || !strings.HasPrefix(r.URL.Path, "/storage/" + authorization.username + "/") {
+	if authorization == nil {
+		w.WriteHeader(401)
+		return;
+	}
+	pathPrefix := "/storage/" + authorization.username + "/"
+	if !strings.HasPrefix(r.URL.Path, pathPrefix) {
 		w.WriteHeader(401)
 		return;
 	}
 
-	files, err := ioutil.ReadDir(getUserDataPath(authorization.username))
+	files, err := ioutil.ReadDir(getUserDataPath(authorization.username)+ r.URL.Path[len(pathPrefix)-1:])
+	w.WriteHeader(200)
 	fmt.Println("Files:")
 	fmt.Println(err)
 	fmt.Println(files)
@@ -86,15 +92,14 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w,"\n")
 	}
 	fmt.Fprint(w, "}\n")
-	w.WriteHeader(200)
+
 }
 
 func itemName(f os.FileInfo)  string{
 	if f.IsDir() {
 		return f.Name()+"/"
-	} else {
-		return f.Name()
 	}
+	return f.Name()
 }
 
 func getUserDataPath(username string) string {
@@ -180,9 +185,8 @@ func handleWebfinger(w http.ResponseWriter, r *http.Request) {
 func getOwnHost(r *http.Request) string {
 	if len(r.Header["X-Forwarded-Host"]) > 0 {
 		return r.Header["X-Forwarded-Host"][0]
-	} else {
-		return r.Host
 	}
+	return r.Host
 }
 
 func createWebfingerJson(host, username string) string {
