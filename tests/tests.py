@@ -96,13 +96,28 @@ def test_storage_directory_listing_for_non_existing_dir(givenTestStorage):
 	dirList = json.loads(r.read())
 	assert len(dirList) == 0
 	
-def test_storage_read_file(givenTestStorage):
+def test_storage_read_data(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/module/file.txt",'GET',{'Bearer': bearerToken})	
 	assert r.status == 200
 	fileContent = r.read()
 	assert fileContent == "text"
+	
+def test_storage_save_data(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/new-file.txt",'PUT',{'Bearer': bearerToken},"new text")	
+	assert r.status == 200
+	r = makeRequest("/storage/user1/module/new-file.txt",'GET',{'Bearer': bearerToken})	
+	fileContent = r.read()
+	assert fileContent == "new text"
 
+def test_storage_save_data_in_new_path(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'PUT',{'Bearer': bearerToken},"new text")	
+	assert r.status == 200
+	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'GET',{'Bearer': bearerToken})	
+	fileContent = r.read()
+	assert fileContent == "new text"	
 
 # utils
 def requestBearerToken():
@@ -117,9 +132,9 @@ def requestBearerToken():
 	return redirectUrl[len(expectedRedirectUrlPrefix):]
 
 
-def makeRequest(path,method="GET",headers={}):
+def makeRequest(path,method="GET",headers={},data=""):
 	conn = httplib.HTTPConnection('localhost:'+port)
-	conn.request(method, path,"",headers)
+	conn.request(method, path,data,headers)
 	return conn.getresponse()
 	
 def copy_and_overwrite(from_path, to_path):

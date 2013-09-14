@@ -79,10 +79,17 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pathInUserStorage := r.URL.Path[len(pathPrefix) - 1:]
-	if strings.HasSuffix(pathInUserStorage, "/") {
-		handleDirectoryListing(w, authorization, pathInUserStorage)
-	} else {
-		handleFile(w, r, authorization, pathInUserStorage)
+	switch r.Method {
+	case "GET":
+		if strings.HasSuffix(pathInUserStorage, "/") {
+			handleDirectoryListing(w, authorization, pathInUserStorage)
+		} else {
+			handleGetFile(w, r, authorization, pathInUserStorage)
+		}
+	case "PUT":
+		handlePutFile(w, r, authorization, pathInUserStorage)
+	default:
+		w.WriteHeader(500)
 	}
 }
 
@@ -107,15 +114,43 @@ func handleDirectoryListing(w http.ResponseWriter, authorization *Authorization,
 	fmt.Fprint(w, "}\n")
 }
 
-func handleFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
+func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
 	f, err := os.Open(getUserDataPath(authorization.username) + pathInUserStorage)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	defer f.Close()
-	fInfo,_ := f.Stat()
+	fInfo, _ := f.Stat()
 	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
+}
+
+func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
+	filename := getUserDataPath(authorization.username) + pathInUserStorage;
+	fmt.Println("Filename: " + filename)
+	ensurePath(filename)
+	f, err := os.Create(filename)
+	if err != nil {
+		fmt.Println("Error", err)
+		w.WriteHeader(500)
+		return
+	}
+	defer f.Close()
+	io.Copy(f, r.Body)
+	w.WriteHeader(200)
+}
+
+func ensurePath(filename string) {
+	path := filename[:strings.LastIndex(filename,"/")]
+	os.MkdirAll(path,os.ModePerm)
+}
+
+/* TODO: Remove because unused ? */
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil { return true, nil }
+	if os.IsNotExist(err) { return false, nil }
+	return false, err
 }
 
 func itemName(f os.FileInfo) string {
