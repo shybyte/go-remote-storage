@@ -1,4 +1,5 @@
 TODO:
+- handle content type
 - delete data
 - public special handling
     - read access without bearer token (but no directory listing!)

@@ -73,17 +73,17 @@ def test_storage_directory_listing_needs_bearer_token(givenTestStorage):
 	assert r.status == 401;
 
 def test_storage_directory_listing_needs_valid_bearer_token(givenTestStorage):
-	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',{'Bearer': "invalid"})
+	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',"invalid-bearer-token")
 	assert r.status == 401;
 	
 def test_storage_directory_listing_needs_bearer_token_matching_user(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/otheruser/myfavoritedrinks/",'GET',{'Bearer': bearerToken})
+	r = makeRequest("/storage/otheruser/myfavoritedrinks/",'GET',bearerToken)
 	assert r.status == 401;	
 
 def test_storage_directory_listing(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/module/",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/module/",'GET',bearerToken)	
 	assert r.status == 200;
 	assert r.getheader('Content-Type') == 'application/json';
 	dirList = json.loads(r.read())
@@ -92,43 +92,43 @@ def test_storage_directory_listing(givenTestStorage):
 
 def test_storage_directory_listing_for_non_existing_dir(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/notextisting/",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/notextisting/",'GET',bearerToken)	
 	assert r.status == 404;
 	dirList = json.loads(r.read())
 	assert len(dirList) == 0
 	
 def test_storage_read_data(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/module/file.txt",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/module/file.txt",'GET',bearerToken)	
 	assert r.status == 200
 	fileContent = r.read()
 	assert fileContent == "text"
 	
 def test_storage_save_data(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/module/new-file.txt",'PUT',{'Bearer': bearerToken},"new text")	
+	r = makeRequest("/storage/user1/module/new-file.txt",'PUT',bearerToken,"new text")	
 	assert r.status == 200
-	r = makeRequest("/storage/user1/module/new-file.txt",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/module/new-file.txt",'GET',bearerToken)	
 	fileContent = r.read()
 	assert fileContent == "new text"
 
 def test_storage_save_data_in_new_path(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'PUT',{'Bearer': bearerToken},"new text")	
+	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'PUT',bearerToken,"new text")	
 	assert r.status == 200
-	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'GET',bearerToken)	
 	fileContent = r.read()
 	assert fileContent == "new text"	
 
 
 def test_storage_save_updates_modified_date_of_ancestor_folders(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/",'GET',bearerToken)	
 	dirList1 = json.loads(r.read())	
 	moduleDirVersion1 = dirList1['module/']
-	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',{'Bearer': bearerToken},"new text")	
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text")	
 	assert r.status == 200			
-	r = makeRequest("/storage/user1/",'GET',{'Bearer': bearerToken})	
+	r = makeRequest("/storage/user1/",'GET',bearerToken)	
 	dirList2 = json.loads(r.read())
 	assert dirList2['module/'] != moduleDirVersion1
 	
@@ -146,8 +146,11 @@ def requestBearerToken():
 	return redirectUrl[len(expectedRedirectUrlPrefix):]
 
 
-def makeRequest(path,method="GET",headers={},data=""):
+def makeRequest(path,method="GET",bearerToken=None,data=""):
 	conn = httplib.HTTPConnection('localhost:'+port)
+	headers = {}
+	if bearerToken:
+		headers['Authorization'] = "Bearer "+bearerToken
 	conn.request(method, path,data,headers)
 	return conn.getresponse()
 	

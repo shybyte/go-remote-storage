@@ -60,14 +60,20 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// no Bearer Token ?
-	if len(r.Header["Bearer"]) == 0 {
+	if len(r.Header["Authorization"]) == 0 {
 		w.WriteHeader(401)
 		return;
 	}
 
+	bearerToken := strings.TrimPrefix(r.Header["Authorization"][0],"Bearer ")
+
 	// invalid Bearer Token ?
-	authorization := authorizationByBearer[r.Header["Bearer"][0]]
+	authorization := authorizationByBearer[bearerToken]
 	if authorization == nil {
+		fmt.Println("Don't know bearer token '"+ bearerToken+"'")
+		for k := range authorizationByBearer {
+			fmt.Println("Available: "+ k)
+		}
 		w.WriteHeader(401)
 		return;
 	}
@@ -75,6 +81,7 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	// is Bearer Token valid for URL/Path?
 	pathPrefix := "/storage/" + authorization.username + "/"
 	if !strings.HasPrefix(r.URL.Path, pathPrefix) {
+		fmt.Println("Token  "+ bearerToken+" is invalid for path "+r.URL.Path)
 		w.WriteHeader(401)
 		return;
 	}
