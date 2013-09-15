@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"crypto/sha1"
 	"os"
+	"time"
 )
 
 type Scope struct {
@@ -96,6 +97,8 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 func handleDirectoryListing(w http.ResponseWriter, authorization *Authorization, pathInUserStorage string) {
 	files, err := ioutil.ReadDir(getUserDataPath(authorization.username) + pathInUserStorage)
 
+	w.Header().Set("Content-Type", "application/json")
+
 	// Handle non existing and empty dirs
 	if err != nil || len(files) == 0 {
 		w.WriteHeader(404)
@@ -137,12 +140,24 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	}
 	defer f.Close()
 	io.Copy(f, r.Body)
+	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
 	w.WriteHeader(200)
 }
 
+func markAncestorFoldersAsModified(basePath, modifiedPath string) {
+	time := time.Now()
+	modifiedPathParts := strings.Split(modifiedPath[1:], "/")
+	currentPath := basePath;
+	for _, pathPart := range modifiedPathParts[:len(modifiedPathParts)-1] {
+		currentPath = currentPath + "/" + pathPart
+		os.Chtimes(currentPath, time, time)
+		fmt.Println("Mark as modified "+currentPath)
+	}
+}
+
 func ensurePath(filename string) {
-	path := filename[:strings.LastIndex(filename,"/")]
-	os.MkdirAll(path,os.ModePerm)
+	path := filename[:strings.LastIndex(filename, "/")]
+	os.MkdirAll(path, os.ModePerm)
 }
 
 /* TODO: Remove because unused ? */

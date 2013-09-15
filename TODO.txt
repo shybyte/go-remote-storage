@@ -1,7 +1,9 @@
 TODO:
-- save data
+- delete data
 - public special handling
-- change password hash
+    - read access without bearer token (but no directory listing!)
+    - read/write/delete access with bearer token
+- change password hash to shX
 - deb package
 
 Done:
@@ -10,3 +12,5 @@ Done:
 - test should restore test data dir in temporary folder
 - finished directory listing
 - load data
+- save data
+    - mark ancestor folders as modified

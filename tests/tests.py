@@ -85,6 +85,7 @@ def test_storage_directory_listing(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/module/",'GET',{'Bearer': bearerToken})	
 	assert r.status == 200;
+	assert r.getheader('Content-Type') == 'application/json';
 	dirList = json.loads(r.read())
 	assert dirList['file.txt']
 	assert dirList['dir/']
@@ -118,6 +119,19 @@ def test_storage_save_data_in_new_path(givenTestStorage):
 	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'GET',{'Bearer': bearerToken})	
 	fileContent = r.read()
 	assert fileContent == "new text"	
+
+
+def test_storage_save_updates_modified_date_of_ancestor_folders(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/",'GET',{'Bearer': bearerToken})	
+	dirList1 = json.loads(r.read())	
+	moduleDirVersion1 = dirList1['module/']
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',{'Bearer': bearerToken},"new text")	
+	assert r.status == 200			
+	r = makeRequest("/storage/user1/",'GET',{'Bearer': bearerToken})	
+	dirList2 = json.loads(r.read())
+	assert dirList2['module/'] != moduleDirVersion1
+	
 
 # utils
 def requestBearerToken():
