@@ -65,14 +65,14 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 		return;
 	}
 
-	bearerToken := strings.TrimPrefix(r.Header["Authorization"][0],"Bearer ")
+	bearerToken := strings.TrimPrefix(r.Header["Authorization"][0], "Bearer ")
 
 	// invalid Bearer Token ?
 	authorization := authorizationByBearer[bearerToken]
 	if authorization == nil {
-		fmt.Println("Don't know bearer token '"+ bearerToken+"'")
+		fmt.Println("Don't know bearer token '" + bearerToken + "'")
 		for k := range authorizationByBearer {
-			fmt.Println("Available: "+ k)
+			fmt.Println("Available: " + k)
 		}
 		w.WriteHeader(401)
 		return;
@@ -81,7 +81,7 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	// is Bearer Token valid for URL/Path?
 	pathPrefix := "/storage/" + authorization.username + "/"
 	if !strings.HasPrefix(r.URL.Path, pathPrefix) {
-		fmt.Println("Token  "+ bearerToken+" is invalid for path "+r.URL.Path)
+		fmt.Println("Token  " + bearerToken + " is invalid for path " + r.URL.Path)
 		w.WriteHeader(401)
 		return;
 	}
@@ -125,12 +125,15 @@ func handleDirectoryListing(w http.ResponseWriter, authorization *Authorization,
 }
 
 func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
-	f, err := os.Open(getUserDataPath(authorization.username) + pathInUserStorage)
+	filename := getUserDataPath(authorization.username) + pathInUserStorage
+	f, err := os.Open(filename)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	defer f.Close()
+	contentType, _ := ioutil.ReadFile(filename + ".ctype")
+	w.Header().Set("Content-Type", string(contentType))
 	fInfo, _ := f.Stat()
 	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
 }
@@ -147,6 +150,7 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	}
 	defer f.Close()
 	io.Copy(f, r.Body)
+	ioutil.WriteFile(filename + ".ctype", []byte(r.Header.Get("Content-Type")), 0644)
 	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
 	w.WriteHeader(200)
 }
@@ -155,10 +159,10 @@ func markAncestorFoldersAsModified(basePath, modifiedPath string) {
 	time := time.Now()
 	modifiedPathParts := strings.Split(modifiedPath[1:], "/")
 	currentPath := basePath;
-	for _, pathPart := range modifiedPathParts[:len(modifiedPathParts)-1] {
+	for _, pathPart := range modifiedPathParts[:len(modifiedPathParts) - 1] {
 		currentPath = currentPath + "/" + pathPart
 		os.Chtimes(currentPath, time, time)
-		fmt.Println("Mark as modified "+currentPath)
+		fmt.Println("Mark as modified " + currentPath)
 	}
 }
 

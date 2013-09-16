@@ -114,12 +114,20 @@ def test_storage_save_data(givenTestStorage):
 
 def test_storage_save_data_in_new_path(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'PUT',bearerToken,"new text")	
+	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'PUT',bearerToken,"new text","text/plain")	
 	assert r.status == 200
 	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'GET',bearerToken)	
 	fileContent = r.read()
 	assert fileContent == "new text"	
+	assert r.getheader('Content-Type') == "text/plain"
 
+def test_storage_get_returns_correct_content_type(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/newdir/json",'PUT',bearerToken,'{"key":"value"}',"application/json")	
+	assert r.status == 200
+	r = makeRequest("/storage/user1/module/newdir/json",'GET',bearerToken)	
+	fileContent = r.read()
+	assert r.getheader('Content-Type') == "application/json"
 
 def test_storage_save_updates_modified_date_of_ancestor_folders(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -146,11 +154,13 @@ def requestBearerToken():
 	return redirectUrl[len(expectedRedirectUrlPrefix):]
 
 
-def makeRequest(path,method="GET",bearerToken=None,data=""):
+def makeRequest(path,method="GET",bearerToken=None,data="",contentType=None):
 	conn = httplib.HTTPConnection('localhost:'+port)
 	headers = {}
 	if bearerToken:
 		headers['Authorization'] = "Bearer "+bearerToken
+	if contentType:
+		headers['Content-Type'] = contentType
 	conn.request(method, path,data,headers)
 	return conn.getresponse()
 	
