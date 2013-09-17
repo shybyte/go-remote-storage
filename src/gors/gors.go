@@ -96,6 +96,8 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 		}
 	case "PUT":
 		handlePutFile(w, r, authorization, pathInUserStorage)
+	case "DELETE":
+		handleDeleteFile(w, r, authorization, pathInUserStorage)
 	default:
 		w.WriteHeader(500)
 	}
@@ -114,14 +116,25 @@ func handleDirectoryListing(w http.ResponseWriter, authorization *Authorization,
 	}
 
 	fmt.Fprint(w, "{\n")
-	for i, f := range files {
+	realFiles := ignoreMetaFiles(files)
+	for i, f := range realFiles {
 		fmt.Fprintf(w, `"%s":"%d"`, itemName(f), f.ModTime().Unix())
-		if i < len(files) - 1 {
+		if i < len(realFiles) - 1 {
 			fmt.Fprintf(w, ",")
 		}
 		fmt.Fprintf(w, "\n")
 	}
 	fmt.Fprint(w, "}\n")
+}
+
+func ignoreMetaFiles(files []os.FileInfo) []os.FileInfo {
+	var realFiles = make([]os.FileInfo,0, len(files)/2)
+	for _, f := range files {
+		if !strings.HasPrefix(f.Name(), CONTENT_TYPE_FILE_NAME_PREFIX) {
+			realFiles = append(realFiles, f)
+		}
+	}
+	return realFiles
 }
 
 func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
@@ -132,7 +145,7 @@ func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Author
 		return
 	}
 	defer f.Close()
-	contentType, _ := ioutil.ReadFile(filename + ".ctype")
+	contentType, _ := ioutil.ReadFile(contentTypeFilename(filename))
 	w.Header().Set("Content-Type", string(contentType))
 	fInfo, _ := f.Stat()
 	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
@@ -140,7 +153,6 @@ func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Author
 
 func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
 	filename := getUserDataPath(authorization.username) + pathInUserStorage;
-	fmt.Println("Filename: " + filename)
 	ensurePath(filename)
 	f, err := os.Create(filename)
 	if err != nil {
@@ -150,10 +162,27 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	}
 	defer f.Close()
 	io.Copy(f, r.Body)
-	ioutil.WriteFile(filename + ".ctype", []byte(r.Header.Get("Content-Type")), 0644)
+	err = ioutil.WriteFile(contentTypeFilename(filename), []byte(r.Header.Get("Content-Type")), 0644)
 	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
 	w.WriteHeader(200)
 }
+
+func handleDeleteFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
+	filename := getUserDataPath(authorization.username) + pathInUserStorage;
+	os.Remove(filename)
+	os.Remove(contentTypeFilename(filename))
+	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
+	removeEmptyAncestorFolders(getUserDataPath(authorization.username), pathInUserStorage)
+}
+
+var FILE_NAME_PATTERN = regexp.MustCompile("/([^/]+)$")
+
+const CONTENT_TYPE_FILE_NAME_PREFIX = ".rsct."
+
+func contentTypeFilename(filename string) string {
+	return FILE_NAME_PATTERN.ReplaceAllString(filename, "/" + CONTENT_TYPE_FILE_NAME_PREFIX + "$1")    //rsct = RemoteStorageContentType
+}
+
 
 func markAncestorFoldersAsModified(basePath, modifiedPath string) {
 	time := time.Now()
@@ -162,7 +191,17 @@ func markAncestorFoldersAsModified(basePath, modifiedPath string) {
 	for _, pathPart := range modifiedPathParts[:len(modifiedPathParts) - 1] {
 		currentPath = currentPath + "/" + pathPart
 		os.Chtimes(currentPath, time, time)
-		fmt.Println("Mark as modified " + currentPath)
+	}
+}
+
+var LAST_PATH_PART_PATTERN = regexp.MustCompile("(/[^/]+)$")
+func removeEmptyAncestorFolders(basePath, path string) {
+	currentPath := LAST_PATH_PART_PATTERN.ReplaceAllString(basePath + path, "")
+	for ; len(currentPath) > len(basePath); currentPath = LAST_PATH_PART_PATTERN.ReplaceAllString(currentPath, "") {
+		files, _ := ioutil.ReadDir(currentPath)
+		if (len(files) == 0) {
+			os.Remove(currentPath)
+		}
 	}
 }
 

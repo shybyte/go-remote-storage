@@ -120,6 +120,11 @@ def test_storage_save_data_in_new_path(givenTestStorage):
 	fileContent = r.read()
 	assert fileContent == "new text"	
 	assert r.getheader('Content-Type') == "text/plain"
+	r = makeRequest("/storage/user1/module/newdir/",'GET',bearerToken)
+	dirList = json.loads(r.read())
+	assert len(dirList) == 1
+	assert dirList['new-file.txt']
+		
 
 def test_storage_get_returns_correct_content_type(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -128,6 +133,7 @@ def test_storage_get_returns_correct_content_type(givenTestStorage):
 	r = makeRequest("/storage/user1/module/newdir/json",'GET',bearerToken)	
 	fileContent = r.read()
 	assert r.getheader('Content-Type') == "application/json"
+	
 
 def test_storage_save_updates_modified_date_of_ancestor_folders(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -139,7 +145,20 @@ def test_storage_save_updates_modified_date_of_ancestor_folders(givenTestStorage
 	r = makeRequest("/storage/user1/",'GET',bearerToken)	
 	dirList2 = json.loads(r.read())
 	assert dirList2['module/'] != moduleDirVersion1
-	
+
+def test_storage_delete_file(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text")	
+	assert r.status == 200			
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'DELETE',bearerToken)
+	assert r.status == 200			
+	r = makeRequest("/storage/user1/module/dir/",'GET',bearerToken)	
+	dirList = json.loads(r.read())
+	assert not 'new-file.txt' in dirList
+	assert len(dirList) == 0
+	r = makeRequest("/storage/user1/module/",'GET',bearerToken)	
+	dirList = json.loads(r.read())
+	assert not 'dir/' in dirList
 
 # utils
 def requestBearerToken():
