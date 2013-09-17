@@ -1,6 +1,6 @@
 TODO:
-- handle content type
-- delete data
+- handle version stuff (412 codes)
+- think about security (breaking out the storage dir)
 - public special handling
     - read access without bearer token (but no directory listing!)
     - read/write/delete access with bearer token
@@ -15,3 +15,7 @@ Done:
 - load data
 - save data
     - mark ancestor folders as modified
+- handle content type (save in hidden files)
+    - ignore hidden files for directory listings
+- delete data
+    - remove ancestor dirs if empty
