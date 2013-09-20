@@ -214,6 +214,13 @@ def test_storage_delete_file(givenTestStorage):
 	dirList = json.loads(r.read())
 	assert not 'dir/' in dirList
 
+def test_storage_not_existing_delete_file(givenTestStorage):
+	bearerToken = requestBearerToken()	
+	r = makeRequest("/storage/user1/module/dir/not-existing-file.txt",'DELETE',bearerToken)
+	assert r.status == 404			
+	
+
+
 def test_storage_delete_with_IF_MATCH_header(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text")	

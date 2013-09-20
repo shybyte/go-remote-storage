@@ -120,7 +120,7 @@ func handleDirectoryListing(w http.ResponseWriter, r *http.Request, authorizatio
 		w.WriteHeader(404)
 	} else {
 		fInfo, _ := os.Stat(dirName)
-		addETag(w, fInfo)
+		addETagFromFileInfo(w, fInfo)
 		w.WriteHeader(200)
 	}
 
@@ -162,12 +162,8 @@ func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	contentType, _ := ioutil.ReadFile(contentTypeFilename(filename))
 	w.Header().Set("Content-Type", string(contentType))
 	fInfo, _ := f.Stat()
-	addETag(w, fInfo)
+	addETagFromFileInfo(w, fInfo)
 	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
-}
-
-func addETag(w http.ResponseWriter, fInfo os.FileInfo) {
-	w.Header().Set("ETag", getETag(fInfo))
 }
 
 func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
@@ -189,8 +185,7 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	io.Copy(f, r.Body)
 	err = ioutil.WriteFile(contentTypeFilename(filename), []byte(r.Header.Get("Content-Type")), 0644)
 	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
-	fInfo, _ := f.Stat()
-	addETag(w, fInfo)
+	addETag(w, filename)
 	w.WriteHeader(200)
 }
 
@@ -226,12 +221,28 @@ func handleDeleteFile(w http.ResponseWriter, r *http.Request, authorization *Aut
 		w.WriteHeader(412)
 		return;
 	}
-	fInfo, _ := os.Stat(filename)
-	addETag(w, fInfo)
+	existFile, err := exists(filename)
+	if (!existFile) {
+		w.WriteHeader(404)
+		return;
+	} else if (err != nil) {
+		w.WriteHeader(500)
+		return;
+	}
+	addETag(w, filename)
 	os.Remove(filename)
 	os.Remove(contentTypeFilename(filename))
 	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
 	removeEmptyAncestorFolders(getUserDataPath(authorization.username), pathInUserStorage)
+}
+
+func addETag(w http.ResponseWriter, filename string) {
+	fInfo, _ := os.Stat(filename)
+	addETagFromFileInfo(w, fInfo)
+}
+
+func addETagFromFileInfo(w http.ResponseWriter, fInfo os.FileInfo) {
+	w.Header().Set("ETag", getETag(fInfo))
 }
 
 func getETag(fInfo os.FileInfo) string {
@@ -273,7 +284,6 @@ func ensurePath(filename string) {
 	os.MkdirAll(path, os.ModePerm)
 }
 
-/* TODO: Remove because unused ? */
 func exists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil { return true, nil }
