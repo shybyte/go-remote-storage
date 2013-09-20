@@ -90,7 +90,7 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		if strings.HasSuffix(pathInUserStorage, "/") {
-			handleDirectoryListing(w, authorization, pathInUserStorage)
+			handleDirectoryListing(w, r, authorization, pathInUserStorage)
 		} else {
 			handleGetFile(w, r, authorization, pathInUserStorage)
 		}
@@ -103,8 +103,15 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleDirectoryListing(w http.ResponseWriter, authorization *Authorization, pathInUserStorage string) {
-	files, err := ioutil.ReadDir(getUserDataPath(authorization.username) + pathInUserStorage)
+func handleDirectoryListing(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
+	dirName := getUserDataPath(authorization.username) + pathInUserStorage
+
+	if needs412Response(r, dirName) {
+		w.WriteHeader(412)
+		return;
+	}
+
+	files, err := ioutil.ReadDir(dirName)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -112,6 +119,8 @@ func handleDirectoryListing(w http.ResponseWriter, authorization *Authorization,
 	if err != nil || len(files) == 0 {
 		w.WriteHeader(404)
 	} else {
+		fInfo, _ := os.Stat(dirName)
+		addETag(w, fInfo)
 		w.WriteHeader(200)
 	}
 
@@ -139,6 +148,11 @@ func ignoreMetaFiles(files []os.FileInfo) []os.FileInfo {
 
 func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
 	filename := getUserDataPath(authorization.username) + pathInUserStorage
+	if needs412Response(r, filename) {
+		w.WriteHeader(412)
+		return;
+	}
+
 	f, err := os.Open(filename)
 	if err != nil {
 		http.NotFound(w, r)
@@ -148,11 +162,22 @@ func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	contentType, _ := ioutil.ReadFile(contentTypeFilename(filename))
 	w.Header().Set("Content-Type", string(contentType))
 	fInfo, _ := f.Stat()
+	addETag(w, fInfo)
 	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
+}
+
+func addETag(w http.ResponseWriter, fInfo os.FileInfo) {
+	w.Header().Set("ETag", getETag(fInfo))
 }
 
 func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
 	filename := getUserDataPath(authorization.username) + pathInUserStorage;
+
+	if needs412Response(r, filename) {
+		w.WriteHeader(412)
+		return;
+	}
+
 	ensurePath(filename)
 	f, err := os.Create(filename)
 	if err != nil {
@@ -164,15 +189,53 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	io.Copy(f, r.Body)
 	err = ioutil.WriteFile(contentTypeFilename(filename), []byte(r.Header.Get("Content-Type")), 0644)
 	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
+	fInfo, _ := f.Stat()
+	addETag(w, fInfo)
 	w.WriteHeader(200)
+}
+
+func needs412Response(r *http.Request, filename string) bool {
+	switch r.Method {
+	case "GET":
+		if ifNoneMatch := r.Header.Get("If-None-Match"); len(ifNoneMatch) > 0 {
+			fInfo, err := os.Stat(filename)
+			if (err == nil && getETag(fInfo) == ifNoneMatch) {
+				return true
+			}
+		}
+	case "PUT", "DELETE":
+		if ifMatch := r.Header.Get("If-Match"); len(ifMatch) > 0 {
+			fInfo, err := os.Stat(filename)
+			if (err != nil || getETag(fInfo) != ifMatch) {
+				return true
+			}
+		}
+		if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch == "*" {
+			_, err := os.Stat(filename)
+			if (err == nil) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func handleDeleteFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
 	filename := getUserDataPath(authorization.username) + pathInUserStorage;
+	if needs412Response(r, filename) {
+		w.WriteHeader(412)
+		return;
+	}
+	fInfo, _ := os.Stat(filename)
+	addETag(w, fInfo)
 	os.Remove(filename)
 	os.Remove(contentTypeFilename(filename))
 	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
 	removeEmptyAncestorFolders(getUserDataPath(authorization.username), pathInUserStorage)
+}
+
+func getETag(fInfo os.FileInfo) string {
+	return fmt.Sprintf("\"%d\"", fInfo.ModTime().Unix())
 }
 
 var FILE_NAME_PATTERN = regexp.MustCompile("/([^/]+)$")
@@ -182,7 +245,6 @@ const CONTENT_TYPE_FILE_NAME_PREFIX = ".rsct."
 func contentTypeFilename(filename string) string {
 	return FILE_NAME_PATTERN.ReplaceAllString(filename, "/" + CONTENT_TYPE_FILE_NAME_PREFIX + "$1")    //rsct = RemoteStorageContentType
 }
-
 
 func markAncestorFoldersAsModified(basePath, modifiedPath string) {
 	time := time.Now()
@@ -195,6 +257,7 @@ func markAncestorFoldersAsModified(basePath, modifiedPath string) {
 }
 
 var LAST_PATH_PART_PATTERN = regexp.MustCompile("(/[^/]+)$")
+
 func removeEmptyAncestorFolders(basePath, path string) {
 	currentPath := LAST_PATH_PART_PATTERN.ReplaceAllString(basePath + path, "")
 	for ; len(currentPath) > len(basePath); currentPath = LAST_PATH_PART_PATTERN.ReplaceAllString(currentPath, "") {
@@ -238,7 +301,6 @@ func userGorsDir(username string) string {
 var authorizationByBearer = make(map[string]*Authorization)
 
 func handleAuth(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(authorizationByBearer)
 	username := r.URL.Path[len("/auth/"):]
 	query := r.URL.Query()
 	scopes := parseScopes(query["scope"][0])
@@ -246,7 +308,6 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 
 	if (r.Method == "POST") {
 		r.ParseForm()
-		fmt.Println(r.Form)
 		if (isPasswordValid(username, r.Form["password"][0])) {
 			authorization := Authorization{username, query["client_id"][0], scopes, uniuri.NewLen(10)}
 			authorizationByBearer[authorization.bearerToken] = &authorization

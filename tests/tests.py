@@ -86,6 +86,7 @@ def test_storage_directory_listing(givenTestStorage):
 	r = makeRequest("/storage/user1/module/",'GET',bearerToken)	
 	assert r.status == 200;
 	assert r.getheader('Content-Type') == 'application/json';
+	assert r.getheader('ETag')
 	dirList = json.loads(r.read())
 	assert dirList['file.txt']
 	assert dirList['dir/']
@@ -96,6 +97,19 @@ def test_storage_directory_listing_for_non_existing_dir(givenTestStorage):
 	assert r.status == 404;
 	dirList = json.loads(r.read())
 	assert len(dirList) == 0
+
+def test_storage_directory_listing_with_versioning(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/",'GET',bearerToken)	
+	assert r.status == 200
+	etag = r.getheader('ETag')
+	r = makeRequest("/storage/user1/module/",'GET',bearerToken,headers={'If-None-Match': etag})	
+	assert r.status == 412
+	r = makeRequest("/storage/user1/module/",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
+	assert r.status == 200	
+	r = makeRequest("/storage/user1/module-new/",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
+	assert r.status == 404
+	
 	
 def test_storage_read_data(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -104,13 +118,31 @@ def test_storage_read_data(givenTestStorage):
 	fileContent = r.read()
 	assert fileContent == "text"
 	
+def test_storage_read_data_with_versioning(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/file.txt",'GET',bearerToken)	
+	assert r.status == 200
+	etag = r.getheader('ETag')
+	r = makeRequest("/storage/user1/module/file.txt",'GET',bearerToken,headers={'If-None-Match': etag})	
+	assert r.status == 412
+	r = makeRequest("/storage/user1/module/file.txt",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
+	fileContent = r.read()
+	assert r.status == 200
+	assert fileContent == "text"	
+	r = makeRequest("/storage/user1/module/file-new.txt",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
+	fileContent = r.read()
+	assert r.status == 404
+	
 def test_storage_save_data(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/module/new-file.txt",'PUT',bearerToken,"new text")	
 	assert r.status == 200
+	assert r.getheader('ETag')
+	etag = r.getheader('ETag')	
 	r = makeRequest("/storage/user1/module/new-file.txt",'GET',bearerToken)	
 	fileContent = r.read()
 	assert fileContent == "new text"
+	assert r.getheader('ETag') == etag
 
 def test_storage_save_data_in_new_path(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -146,11 +178,33 @@ def test_storage_save_updates_modified_date_of_ancestor_folders(givenTestStorage
 	dirList2 = json.loads(r.read())
 	assert dirList2['module/'] != moduleDirVersion1
 
+def test_storage_save_with_IF_MATCH_header(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text")	
+	assert r.status == 200
+	etag = r.getheader('ETag')				
+	print etag
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text 2",headers={'If-Match': "invalid"})
+	assert r.status == 412
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text 2",headers={'If-Match': etag})
+	assert r.status == 200
+	r = makeRequest("/storage/user1/module/dir/new-file2.txt",'PUT',bearerToken,"new text 3",headers={'If-Match': etag})
+	assert r.status == 412
+
+def test_storage_save_with_IF_NONE_MATCH_STAR_header(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text",headers={'If-None-Match': "*"})
+	assert r.status == 200
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text",headers={'If-None-Match': "*"})
+	assert r.status == 412
+
 def test_storage_delete_file(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text")	
-	assert r.status == 200			
+	assert r.status == 200
+	etag = r.getheader('ETag')	
 	r = makeRequest("/storage/user1/module/dir/new-file.txt",'DELETE',bearerToken)
+	assert r.getheader('ETag') == etag
 	assert r.status == 200			
 	r = makeRequest("/storage/user1/module/dir/",'GET',bearerToken)	
 	dirList = json.loads(r.read())
@@ -159,6 +213,19 @@ def test_storage_delete_file(givenTestStorage):
 	r = makeRequest("/storage/user1/module/",'GET',bearerToken)	
 	dirList = json.loads(r.read())
 	assert not 'dir/' in dirList
+
+def test_storage_delete_with_IF_MATCH_header(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text")	
+	assert r.status == 200
+	etag = r.getheader('ETag')				
+	print etag
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'DELETE',bearerToken,headers={'If-Match': "invalid"})
+	assert r.status == 412
+	r = makeRequest("/storage/user1/module/dir/new-file.txt",'DELETE',bearerToken,"new text 2",headers={'If-Match': etag})
+	assert r.status == 200
+	r = makeRequest("/storage/user1/module/dir/new-file2.txt",'DELETE',bearerToken,"new text 3",headers={'If-Match': etag})
+	assert r.status == 412
 
 # utils
 def requestBearerToken():
@@ -173,9 +240,8 @@ def requestBearerToken():
 	return redirectUrl[len(expectedRedirectUrlPrefix):]
 
 
-def makeRequest(path,method="GET",bearerToken=None,data="",contentType=None):
+def makeRequest(path,method="GET",bearerToken=None,data="",contentType=None,headers = {}):
 	conn = httplib.HTTPConnection('localhost:'+port)
-	headers = {}
 	if bearerToken:
 		headers['Authorization'] = "Bearer "+bearerToken
 	if contentType:

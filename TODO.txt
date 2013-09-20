@@ -1,11 +1,17 @@
 TODO:
-- handle version stuff (412 codes)
-- think about security (breaking out the storage dir)
 - public special handling
     - read access without bearer token (but no directory listing!)
     - read/write/delete access with bearer token
+- think about security (breaking out the storage dir)
 - change password hash to shX
+- make storage folder structure configurable in order to allow using home folder and owncloud storage
+- chown files to username or predefined user name (configurable)
+- compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
+- test with https apache reverse proxy
 - deb package
+    - base
+    - home folder service
+    - own cloud service
 
 Done:
 - configure path and port
@@ -19,3 +25,4 @@ Done:
     - ignore hidden files for directory listings
 - delete data
     - remove ancestor dirs if empty
+- handle version stuff (412 codes)
