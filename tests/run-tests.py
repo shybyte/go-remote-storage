@@ -1,3 +1,3 @@
 import pytest
-#pytest.main('-k "test_storage_prevent_attempt_to_hack_path"  tests.py')
+#pytest.main('-k "test_confirm_permission_with_password_and_redirect_to_app"  tests.py')
 pytest.main('tests.py')

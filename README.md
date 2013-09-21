@@ -2,4 +2,4 @@
 ## Installation
 TODO
 ### Creating Password
-echo -n password1 | sha1sum | cut -f 1 -d " " >password-sha1.txt
+echo -n password | sha512sum | cut -f 1 -d " " >password-sha512.txt

@@ -12,7 +12,7 @@ import (
 	"libs/uniuri"
 	"io"
 	"io/ioutil"
-	"crypto/sha1"
+	"crypto/sha512"
 	"os"
 	"time"
 )
@@ -372,16 +372,17 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func isPasswordValid(username string, password string) bool {
-	passwordFileBuf, _ := ioutil.ReadFile(userGorsDir(username) + "password-sha1.txt")
-	expectedPasswordSha1 := string(passwordFileBuf)
-	return expectedPasswordSha1[:40] == sha1Sum(password)
+	passwordFileBuf, _ := ioutil.ReadFile(userGorsDir(username) + "password-sha512.txt")
+	expectedPasswordSha1 := strings.Trim(string(passwordFileBuf)," \n")
+	return expectedPasswordSha1 == sha512Sum(password)
 }
 
-func sha1Sum(s string) string {
-	sha1Hash := sha1.New()
-	io.WriteString(sha1Hash, s)
-	return fmt.Sprintf("%x", sha1Hash.Sum(nil))
+func sha512Sum(s string) string {
+	sha512Hash := sha512.New()
+	io.WriteString(sha512Hash, s)
+	return fmt.Sprintf("%x", sha512Hash.Sum(nil))
 }
+
 
 func parseScopes(scopesString string) []Scope {
 	scopeStrings := strings.Split(scopesString, " ")
