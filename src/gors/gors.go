@@ -52,6 +52,8 @@ func StartServer(storageDir string, port int) {
 
 /* ------------------------------------ Storage ----------------------------- */
 
+var STORAGE_PATH_PATTERN = regexp.MustCompile("^/storage/([^/]+)(/.*)$")
+
 func handleStorage(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w, r)
 
@@ -59,10 +61,56 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 		return;
 	}
 
-	// no Bearer Token ?
-	if len(r.Header["Authorization"]) == 0 {
+	pathParts := STORAGE_PATH_PATTERN.FindStringSubmatch(r.URL.Path)
+	if len(pathParts) < 3 {
+		w.WriteHeader(400)
+		return;
+	}
+
+	username := pathParts[1]
+	pathInUserStorage := pathParts[2]
+
+	if !isAuthorized(r, pathInUserStorage) {
 		w.WriteHeader(401)
 		return;
+	}
+
+	userStoragePath := getUserDataPath(username)
+	switch r.Method {
+	case "GET":
+		filename := userStoragePath + pathInUserStorage
+		if isDirListingRequest(filename) {
+			handleDirectoryListing(w, r, filename)
+		} else {
+			handleGetFile(w, r, filename)
+		}
+	case "PUT":
+		handlePutFile(w, r, userStoragePath, pathInUserStorage)
+	case "DELETE":
+		handleDeleteFile(w, r, userStoragePath, pathInUserStorage)
+	default:
+		w.WriteHeader(500)
+	}
+}
+
+func isDirListingRequest(path string) bool{
+	return strings.HasSuffix(path, "/")
+}
+
+func isAuthorized(r *http.Request, pathInUserStorage string) bool {
+	if r.Method == "GET" && strings.HasPrefix(pathInUserStorage, "/public") && !isDirListingRequest(pathInUserStorage) {
+		// everybody can read public data, so we need no authorization
+		return true
+	} else if getAuthorization(r, pathInUserStorage) != nil {
+		return true
+	}
+	return false
+}
+
+func getAuthorization(r *http.Request, pathInUserStorage string) *Authorization {
+	// no Bearer Token ?
+	if len(r.Header["Authorization"]) == 0 {
+		return nil;
 	}
 
 	bearerToken := strings.TrimPrefix(r.Header["Authorization"][0], "Bearer ")
@@ -70,42 +118,29 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	// invalid Bearer Token ?
 	authorization := authorizationByBearer[bearerToken]
 	if authorization == nil {
-		fmt.Println("Don't know bearer token '" + bearerToken + "'")
-		for k := range authorizationByBearer {
-			fmt.Println("Available: " + k)
-		}
-		w.WriteHeader(401)
-		return;
+		return nil;
 	}
 
-	// is Bearer Token valid for URL/Path?
-	pathPrefix := "/storage/" + authorization.username + "/"
-	if !strings.HasPrefix(r.URL.Path, pathPrefix) {
+	// is Bearer Token valid for user?
+	if !strings.HasPrefix(r.URL.Path, "/storage/" + authorization.username) {
 		fmt.Println("Token  " + bearerToken + " is invalid for path " + r.URL.Path)
-		w.WriteHeader(401)
-		return;
+		return nil;
 	}
 
-	pathInUserStorage := r.URL.Path[len(pathPrefix) - 1:]
-	switch r.Method {
-	case "GET":
-		if strings.HasSuffix(pathInUserStorage, "/") {
-			handleDirectoryListing(w, r, authorization, pathInUserStorage)
-		} else {
-			handleGetFile(w, r, authorization, pathInUserStorage)
+	// Is Bearer Token valid for Scopes
+	for _, scope := range authorization.scopes {
+		if (strings.HasPrefix(pathInUserStorage, "/" + scope.path + "/") ||
+				strings.HasPrefix(pathInUserStorage, "/public/" + scope.path + "/") ||
+				strings.HasPrefix(scope.path, "root")) &&
+				(r.Method == "GET" || (scope.write)) {
+			return authorization
 		}
-	case "PUT":
-		handlePutFile(w, r, authorization, pathInUserStorage)
-	case "DELETE":
-		handleDeleteFile(w, r, authorization, pathInUserStorage)
-	default:
-		w.WriteHeader(500)
 	}
+
+	return nil
 }
 
-func handleDirectoryListing(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
-	dirName := getUserDataPath(authorization.username) + pathInUserStorage
-
+func handleDirectoryListing(w http.ResponseWriter, r *http.Request, dirName string) {
 	if needs412Response(r, dirName) {
 		w.WriteHeader(412)
 		return;
@@ -146,8 +181,7 @@ func ignoreMetaFiles(files []os.FileInfo) []os.FileInfo {
 	return realFiles
 }
 
-func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
-	filename := getUserDataPath(authorization.username) + pathInUserStorage
+func handleGetFile(w http.ResponseWriter, r *http.Request, filename string) {
 	if needs412Response(r, filename) {
 		w.WriteHeader(412)
 		return;
@@ -166,8 +200,8 @@ func handleGetFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
 }
 
-func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
-	filename := getUserDataPath(authorization.username) + pathInUserStorage;
+func handlePutFile(w http.ResponseWriter, r *http.Request, userStoragePath string, pathInUserStorage string) {
+	filename := userStoragePath + pathInUserStorage;
 
 	if needs412Response(r, filename) {
 		w.WriteHeader(412)
@@ -184,7 +218,7 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, authorization *Author
 	defer f.Close()
 	io.Copy(f, r.Body)
 	err = ioutil.WriteFile(contentTypeFilename(filename), []byte(r.Header.Get("Content-Type")), 0644)
-	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
+	markAncestorFoldersAsModified(userStoragePath, pathInUserStorage)
 	addETag(w, filename)
 	w.WriteHeader(200)
 }
@@ -215,8 +249,8 @@ func needs412Response(r *http.Request, filename string) bool {
 	return false
 }
 
-func handleDeleteFile(w http.ResponseWriter, r *http.Request, authorization *Authorization, pathInUserStorage string) {
-	filename := getUserDataPath(authorization.username) + pathInUserStorage;
+func handleDeleteFile(w http.ResponseWriter, r *http.Request, userStoragePath string, pathInUserStorage string) {
+	filename := userStoragePath + pathInUserStorage;
 	if needs412Response(r, filename) {
 		w.WriteHeader(412)
 		return;
@@ -232,8 +266,8 @@ func handleDeleteFile(w http.ResponseWriter, r *http.Request, authorization *Aut
 	addETag(w, filename)
 	os.Remove(filename)
 	os.Remove(contentTypeFilename(filename))
-	markAncestorFoldersAsModified(getUserDataPath(authorization.username), pathInUserStorage)
-	removeEmptyAncestorFolders(getUserDataPath(authorization.username), pathInUserStorage)
+	markAncestorFoldersAsModified(userStoragePath, pathInUserStorage)
+	removeEmptyAncestorFolders(userStoragePath, pathInUserStorage)
 }
 
 func addETag(w http.ResponseWriter, filename string) {

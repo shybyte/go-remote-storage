@@ -1,13 +1,10 @@
 TODO:
-- public special handling
-    - read access without bearer token (but no directory listing!)
-    - read/write/delete access with bearer token
-- think about security (breaking out the storage dir)
 - change password hash to shX
 - make storage folder structure configurable in order to allow using home folder and owncloud storage
 - chown files to username or predefined user name (configurable)
 - compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
 - test with https apache reverse proxy
+- add speed tests, test speed on raspberry pi
 - deb package
     - base
     - home folder service
@@ -26,3 +23,9 @@ Done:
 - delete data
     - remove ancestor dirs if empty
 - handle version stuff (412 codes)
+- read/write permissions handled correctly
+- scopes permissions handled correctly
+- public special handling
+    - read access without bearer token (but no directory listing!)
+    - read/write/delete access with bearer token
+- think about security (breaking out the storage dir)

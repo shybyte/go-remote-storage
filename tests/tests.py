@@ -64,22 +64,58 @@ def test_storage_cors():
 	assert r.getheader('Access-Control-Allow-Origin') == "*"
 
 def test_storage_cors():
-	r = makeRequest("/storage/user1/myfavoritedrinks/",'OPTIONS')
+	r = makeRequest("/storage/user1/module/",'OPTIONS')
 	assert r.status == 200;
 	assert r.getheader('Access-Control-Allow-Origin') == "*"
 
 def test_storage_directory_listing_needs_bearer_token(givenTestStorage):	
-	r = makeRequest("/storage/user1/myfavoritedrinks/")
+	r = makeRequest("/storage/user1/module/")
 	assert r.status == 401;
 
 def test_storage_directory_listing_needs_valid_bearer_token(givenTestStorage):
-	r = makeRequest("/storage/user1/myfavoritedrinks/",'GET',"invalid-bearer-token")
+	r = makeRequest("/storage/user1/module/",'GET',"invalid-bearer-token")
 	assert r.status == 401;
 	
 def test_storage_directory_listing_needs_bearer_token_matching_user(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/otheruser/myfavoritedrinks/",'GET',bearerToken)
-	assert r.status == 401;	
+	r = makeRequest("/storage/otheruser/module/",'GET',bearerToken)
+	assert r.status == 401;
+	
+def test_storage_directory_listing_needs_bearer_token_matching_scopes(givenTestStorage):
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/other-module/",'GET',bearerToken)
+	assert r.status == 401;		
+	r = makeRequest("/storage/user1/module/",'GET',bearerToken)
+	assert r.status == 200;
+	r = makeRequest("/storage/user1/public/module/",'GET',bearerToken)
+	assert r.status == 200;	
+
+
+def test_storage_prevent_attempt_to_hack_path(givenTestStorage):
+	# don't know if this is correct behaviour, but at least you can't hack the server that easily
+	bearerToken = requestBearerToken()
+	r = makeRequest("/storage/user1/module/../other-module",'GET',bearerToken)
+	redirectUrl = r.getheader('Location')
+	assert redirectUrl == "/storage/user1/other-module"
+	assert r.status == 301;		
+	r = makeRequest("/storage/user1/module/../../../../../other-module",'GET',bearerToken)
+	redirectUrl = r.getheader('Location')
+	assert redirectUrl == "/other-module"
+	assert r.status == 301;		
+	r = makeRequest("/storage/user1/module/../other-module",'PUT',bearerToken)
+	assert r.status == 301;		
+	r = makeRequest("/storage/user1/module/../other-module",'DELETE',bearerToken)
+	assert r.status == 301;		
+	
+	
+
+def test_storage_directory_listing_needs_bearer_token_matching_scope_mode(givenTestStorage):
+	bearerToken = requestBearerToken(scopes=['module:r'])
+	r = makeRequest("/storage/user1/module/new-file.txt",'PUT',bearerToken,"new text")	
+	assert r.status == 401;		
+	r = makeRequest("/storage/user1/module/new-file.txt",'DELETE',bearerToken)	
+	assert r.status == 401;			
+	
 
 def test_storage_directory_listing(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -93,7 +129,7 @@ def test_storage_directory_listing(givenTestStorage):
 
 def test_storage_directory_listing_for_non_existing_dir(givenTestStorage):
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/notextisting/",'GET',bearerToken)	
+	r = makeRequest("/storage/user1/module/notextisting/",'GET',bearerToken)	
 	assert r.status == 404;
 	dirList = json.loads(r.read())
 	assert len(dirList) == 0
@@ -107,7 +143,7 @@ def test_storage_directory_listing_with_versioning(givenTestStorage):
 	assert r.status == 412
 	r = makeRequest("/storage/user1/module/",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
 	assert r.status == 200	
-	r = makeRequest("/storage/user1/module-new/",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
+	r = makeRequest("/storage/user1/module/new/",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
 	assert r.status == 404
 	
 	
@@ -132,6 +168,15 @@ def test_storage_read_data_with_versioning(givenTestStorage):
 	r = makeRequest("/storage/user1/module/file-new.txt",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
 	fileContent = r.read()
 	assert r.status == 404
+
+def test_storage_read_public_data(givenTestStorage):
+	r = makeRequest("/storage/user1/public/module/file.txt",'GET')	
+	assert r.status == 200
+
+def test_storage_read_public_directory_listing(givenTestStorage):
+	r = makeRequest("/storage/user1/public/module/",'GET')	
+	assert r.status == 401	
+	
 	
 def test_storage_save_data(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -168,8 +213,9 @@ def test_storage_get_returns_correct_content_type(givenTestStorage):
 	
 
 def test_storage_save_updates_modified_date_of_ancestor_folders(givenTestStorage):
-	bearerToken = requestBearerToken()
+	bearerToken = requestBearerToken(scopes=['root:r','module:rw'])
 	r = makeRequest("/storage/user1/",'GET',bearerToken)	
+	assert r.status == 200
 	dirList1 = json.loads(r.read())	
 	moduleDirVersion1 = dirList1['module/']
 	r = makeRequest("/storage/user1/module/dir/new-file.txt",'PUT',bearerToken,"new text")	
@@ -217,9 +263,7 @@ def test_storage_delete_file(givenTestStorage):
 def test_storage_not_existing_delete_file(givenTestStorage):
 	bearerToken = requestBearerToken()	
 	r = makeRequest("/storage/user1/module/dir/not-existing-file.txt",'DELETE',bearerToken)
-	assert r.status == 404			
-	
-
+	assert r.status == 404				
 
 def test_storage_delete_with_IF_MATCH_header(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -235,20 +279,24 @@ def test_storage_delete_with_IF_MATCH_header(givenTestStorage):
 	assert r.status == 412
 
 # utils
-def requestBearerToken():
+def requestBearerToken(mode="rw",scopes=['module:rw']):
 	values = {'password' : 'password'}
 	data = urllib.urlencode(values)
 	headers = {"Content-type": "application/x-www-form-urlencoded"}	
 	conn = httplib.HTTPConnection('localhost:'+port)
-	conn.request("POST", "/auth/user1"+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope=myfavoritedrinks%3Arw&response_type=token",data,headers)
+	scopesString = "%20".join(scopes).replace(":","%3A")
+	conn.request("POST", "/auth/user1"+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope="+scopesString+"&response_type=token",data,headers)
 	r = conn.getresponse()		
 	redirectUrl = r.getheader('Location')
 	expectedRedirectUrlPrefix = 'https://myfavoritedrinks.5apps.com/#access_token='
 	return redirectUrl[len(expectedRedirectUrlPrefix):]
 
 
-def makeRequest(path,method="GET",bearerToken=None,data="",contentType=None,headers = {}):
+# headers = {} does not work because of http://stackoverflow.com/questions/1132941/least-astonishment-in-python-the-mutable-default-argument
+def makeRequest(path,method="GET",bearerToken=None,data="",contentType=None,headers=None):
 	conn = httplib.HTTPConnection('localhost:'+port)
+	if not headers:		
+		headers = {}
 	if bearerToken:
 		headers['Authorization'] = "Bearer "+bearerToken
 	if contentType:
