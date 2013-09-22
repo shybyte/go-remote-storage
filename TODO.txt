@@ -1,6 +1,7 @@
 TODO:
-- make storage folder structure configurable in order to allow using home folder and owncloud storage
-- chown files to username or predefined user name (configurable)
+- chown files to bearer token username or predefined user name (configurable)
+    - /home/shybyte/IdeaPrects/go-remote-storage/bin/main -storage /var/www/owncloud/data -mode owncloud -port 8888 -chown -resources /home/shybyte/IdeaProjects/go-remote-storage/src
+    -
 - compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
 - test with https apache reverse proxy
 - add speed tests, test speed on raspberry pi
@@ -12,6 +13,7 @@ TODO:
 
 Ideas:
     - Support several password hash functions? sha3? Is sha512 really secure?
+    - Create user dir on first request (ask for password)
 
 Done:
 - configure path and port
@@ -33,3 +35,5 @@ Done:
     - read/write/delete access with bearer token
 - think about security (breaking out the storage dir)
 - change password hash to sha512
+- make storage folder structure configurable in order to allow using home folder and owncloud storage
+- option to configure resources (templates,css)

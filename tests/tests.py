@@ -14,7 +14,7 @@ server = "http://localhost:"+port
 
 @pytest.fixture
 def givenTestStorage():
-    copy_and_overwrite("../storage-example","../tmp/test-storage")
+    copy_and_overwrite("../storage-examples/home","../tmp/test-storage")
 
 
 def test_get_webfinger():

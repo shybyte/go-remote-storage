@@ -17,6 +17,13 @@ import (
 	"time"
 )
 
+type StorageMode string
+
+const (
+	OWNCLOUD = "owncloud"
+	HOME     = "home"
+)
+
 type Scope struct {
 	path  string;
 	write bool
@@ -37,13 +44,19 @@ type Authorization struct {
 }
 
 var dataPath string
+var storageMode StorageMode
+var chown bool
+var resourcesPath string
 
-func StartServer(storageDir string, port int) {
+func StartServer(storageDir string, storageModePara StorageMode, chownPara bool,resourcesPathPara string, port int) {
 	dataPath = storageDir
+	storageMode = storageModePara
+	chown = chownPara
+	resourcesPath = resourcesPathPara
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
 	http.HandleFunc("/auth/", handleAuth)
 	http.HandleFunc("/storage/", handleStorage)
-	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("src/css"))))
+	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir(resourcesPath+"/css"))))
 	err := http.ListenAndServe(":" + strconv.Itoa(port), nil)
 	if err != nil {
 		log.Fatal(err)
@@ -93,7 +106,7 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func isDirListingRequest(path string) bool{
+func isDirListingRequest(path string) bool {
 	return strings.HasSuffix(path, "/")
 }
 
@@ -337,6 +350,9 @@ func getUserDataPath(username string) string {
 }
 
 func userGorsDir(username string) string {
+	if storageMode == OWNCLOUD {
+		return dataPath + "/" + username + "/files/.gors/"
+	}
 	return dataPath + "/" + username + "/.gors/"
 }
 
@@ -362,7 +378,7 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	t, _ := template.ParseFiles("src/templates/login.html")
+	t, _ := template.ParseFiles(resourcesPath+"/templates/login.html")
 	t.Execute(w, map[string]interface{} {
 			"username": username,
 			"scopes": scopes,
@@ -373,7 +389,7 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 
 func isPasswordValid(username string, password string) bool {
 	passwordFileBuf, _ := ioutil.ReadFile(userGorsDir(username) + "password-sha512.txt")
-	expectedPasswordSha1 := strings.Trim(string(passwordFileBuf)," \n")
+	expectedPasswordSha1 := strings.Trim(string(passwordFileBuf), " \n")
 	return expectedPasswordSha1 == sha512Sum(password)
 }
 
