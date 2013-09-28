@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"crypto/sha512"
 	"os"
+	"os/user"
 	"time"
 )
 
@@ -45,10 +46,10 @@ type Authorization struct {
 
 var dataPath string
 var storageMode StorageMode
-var chown bool
+var chown string
 var resourcesPath string
 
-func StartServer(storageDir string, storageModePara StorageMode, chownPara bool,resourcesPathPara string, port int) {
+func StartServer(storageDir string, storageModePara StorageMode, chownPara string, resourcesPathPara string, port int) {
 	dataPath = storageDir
 	storageMode = storageModePara
 	chown = chownPara
@@ -56,7 +57,7 @@ func StartServer(storageDir string, storageModePara StorageMode, chownPara bool,
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
 	http.HandleFunc("/auth/", handleAuth)
 	http.HandleFunc("/storage/", handleStorage)
-	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir(resourcesPath+"/css"))))
+	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir(resourcesPath + "/css"))))
 	err := http.ListenAndServe(":" + strconv.Itoa(port), nil)
 	if err != nil {
 		log.Fatal(err)
@@ -231,9 +232,28 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, userStoragePath strin
 	defer f.Close()
 	io.Copy(f, r.Body)
 	err = ioutil.WriteFile(contentTypeFilename(filename), []byte(r.Header.Get("Content-Type")), 0644)
+	chownIfNeeded(contentTypeFilename(filename));
 	markAncestorFoldersAsModified(userStoragePath, pathInUserStorage)
 	addETag(w, filename)
+	chownIfNeeded(filename);
 	w.WriteHeader(200)
+}
+
+func chownIfNeeded(filename string) {
+	if chown == "" || chown == "*" {
+		return;
+	}
+	user, err := user.Lookup(chown)
+	fmt.Println("Chown ", filename, user, err)
+	if err != nil {
+		fmt.Println("Error while chown. Can't find user:", err)
+	}
+	uid, _ := strconv.Atoi(user.Uid)
+	gid, _ := strconv.Atoi(user.Gid)
+	err = os.Chown(filename, uid, gid)
+	if err != nil {
+		fmt.Println("Error while chown:", err)
+	}
 }
 
 func needs412Response(r *http.Request, filename string) bool {
@@ -329,6 +349,7 @@ func removeEmptyAncestorFolders(basePath, path string) {
 func ensurePath(filename string) {
 	path := filename[:strings.LastIndex(filename, "/")]
 	os.MkdirAll(path, os.ModePerm)
+	chownIfNeeded(path)
 }
 
 func exists(path string) (bool, error) {
@@ -378,7 +399,7 @@ func handleAuth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	t, _ := template.ParseFiles(resourcesPath+"/templates/login.html")
+	t, _ := template.ParseFiles(resourcesPath + "/templates/login.html")
 	t.Execute(w, map[string]interface{} {
 			"username": username,
 			"scopes": scopes,

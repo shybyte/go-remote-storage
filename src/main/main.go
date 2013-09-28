@@ -8,7 +8,7 @@ import (
 func main() {
 	storageDir := flag.String("storage", "storage", "Storage Root Directory")
 	storageMode := flag.String("mode", gors.HOME, "Storage Mode")
-	chown := flag.Bool("chown", false, "Chown new files?")
+	chown := flag.String("chown", "", "Chown files to provided user name or use authenticated user name (*)")
 	resourcesPath := flag.String("resources", "src", "Path for templates and css")
 	port := flag.Int("port", 8888, "Server Port")
 	flag.Parse()

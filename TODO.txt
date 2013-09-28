@@ -1,7 +1,7 @@
 TODO:
-- chown files to bearer token username or predefined user name (configurable)
-    - /home/shybyte/IdeaPrects/go-remote-storage/bin/main -storage /var/www/owncloud/data -mode owncloud -port 8888 -chown -resources /home/shybyte/IdeaProjects/go-remote-storage/src
-    -
+- chown files to bearer token username (*) or predefined user name (configurable)
+    - /home/shybyte/IdeaProjects/go-remote-storage/bin/main -storage /var/www/owncloud/data -mode owncloud -port 8888 -chown www-data -resources /home/shybyte/IdeaProjects/go-remote-storage/src
+    - apply while creating nested paths
 - compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
 - test with https apache reverse proxy
 - add speed tests, test speed on raspberry pi
