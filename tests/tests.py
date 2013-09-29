@@ -7,8 +7,11 @@ import shutil
 import os
 import pytest
 
-port = "8889"
+#port = "8889"
+port = "80"
 server = "http://localhost:"+port
+#username = "user1"
+username = "marco"
 
 
 
@@ -193,7 +196,7 @@ def test_storage_save_data_in_new_path(givenTestStorage):
 	bearerToken = requestBearerToken()
 	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'PUT',bearerToken,"new text","text/plain")	
 	assert r.status == 200
-	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'GET',bearerToken)	
+	r = makeRequest("/storage/user1/module/newdir/new-file.txt",'GET',bearerToken)
 	fileContent = r.read()
 	assert fileContent == "new text"	
 	assert r.getheader('Content-Type') == "text/plain"
@@ -201,7 +204,19 @@ def test_storage_save_data_in_new_path(givenTestStorage):
 	dirList = json.loads(r.read())
 	assert len(dirList) == 1
 	assert dirList['new-file.txt']
-		
+
+def test_storage_save_data_in_new_module(givenTestStorage):
+	bearerToken = requestBearerToken(scopes=['new-module:rw'])
+	r = makeRequest("/storage/"+username+"/new-module/newdir/new-file.txt",'PUT',bearerToken,"new text","text/plain")	
+	assert r.status == 200
+	r = makeRequest("/storage/"+username+"/new-module/newdir/new-file.txt",'GET',bearerToken)
+	fileContent = r.read()
+	assert fileContent == "new text"	
+	assert r.getheader('Content-Type') == "text/plain"
+	r = makeRequest("/storage/"+username+"/new-module/newdir/",'GET',bearerToken)
+	dirList = json.loads(r.read())
+	assert len(dirList) == 1
+	assert dirList['new-file.txt']		
 
 def test_storage_get_returns_correct_content_type(givenTestStorage):
 	bearerToken = requestBearerToken()
@@ -285,7 +300,7 @@ def requestBearerToken(mode="rw",scopes=['module:rw']):
 	headers = {"Content-type": "application/x-www-form-urlencoded"}	
 	conn = httplib.HTTPConnection('localhost:'+port)
 	scopesString = "%20".join(scopes).replace(":","%3A")
-	conn.request("POST", "/auth/user1"+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope="+scopesString+"&response_type=token",data,headers)
+	conn.request("POST", "/auth/"+username+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope="+scopesString+"&response_type=token",data,headers)
 	r = conn.getresponse()		
 	redirectUrl = r.getheader('Location')
 	expectedRedirectUrlPrefix = 'https://myfavoritedrinks.5apps.com/#access_token='

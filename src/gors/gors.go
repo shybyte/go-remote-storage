@@ -234,6 +234,7 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, userStoragePath strin
 	err = ioutil.WriteFile(contentTypeFilename(filename), []byte(r.Header.Get("Content-Type")), 0644)
 	chownIfNeeded(contentTypeFilename(filename));
 	markAncestorFoldersAsModified(userStoragePath, pathInUserStorage)
+	chownAncestorFoldersIfNeeded(userStoragePath, pathInUserStorage)
 	addETag(w, filename)
 	chownIfNeeded(filename);
 	w.WriteHeader(200)
@@ -255,6 +256,14 @@ func chownIfNeeded(filename string) {
 		fmt.Println("Error while chown:", err)
 	}
 }
+
+func chownAncestorFoldersIfNeeded(basePath, modifiedPath string) {
+	forAllAncestorFolders(basePath, modifiedPath, func(path string) {
+			chownIfNeeded(path)
+		})
+}
+
+
 
 func needs412Response(r *http.Request, filename string) bool {
 	switch r.Method {
@@ -326,11 +335,17 @@ func contentTypeFilename(filename string) string {
 
 func markAncestorFoldersAsModified(basePath, modifiedPath string) {
 	time := time.Now()
+	forAllAncestorFolders(basePath, modifiedPath, func(path string) {
+			os.Chtimes(path, time, time)
+		})
+}
+
+func forAllAncestorFolders(basePath, modifiedPath string, f func (string)) {
 	modifiedPathParts := strings.Split(modifiedPath[1:], "/")
 	currentPath := basePath;
 	for _, pathPart := range modifiedPathParts[:len(modifiedPathParts) - 1] {
 		currentPath = currentPath + "/" + pathPart
-		os.Chtimes(currentPath, time, time)
+		f(currentPath)
 	}
 }
 

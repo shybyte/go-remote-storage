@@ -1,7 +1,7 @@
 TODO:
 - chown files to bearer token username (*) or predefined user name (configurable)
+    - to bearer token username (*)
     - /home/shybyte/IdeaProjects/go-remote-storage/bin/main -storage /var/www/owncloud/data -mode owncloud -port 8888 -chown www-data -resources /home/shybyte/IdeaProjects/go-remote-storage/src
-    - apply while creating nested paths
 - compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
 - test with https apache reverse proxy
 - add speed tests, test speed on raspberry pi
@@ -37,3 +37,7 @@ Done:
 - change password hash to sha512
 - make storage folder structure configurable in order to allow using home folder and owncloud storage
 - option to configure resources (templates,css)
+- chown files to bearer token username (*) or predefined user name (configurable)
+    - /home/shybyte/IdeaProjects/go-remote-storage/bin/main -storage /var/www/owncloud/data -mode owncloud -port 8888 -chown www-data -resources /home/shybyte/IdeaProjects/go-remote-storage/src
+    - apply while creating nested paths
+    - to predefined user name (configurable)
