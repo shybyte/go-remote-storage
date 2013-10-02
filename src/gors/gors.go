@@ -44,6 +44,9 @@ type Authorization struct {
 	bearerToken   string
 }
 
+const GORS_PATH = "/gors"
+var STORAGE_PATH = GORS_PATH+"/storage/"
+
 var dataPath string
 var storageMode StorageMode
 var chown string
@@ -55,9 +58,9 @@ func StartServer(storageDir string, storageModePara StorageMode, chownPara strin
 	chown = chownPara
 	resourcesPath = resourcesPathPara
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
-	http.HandleFunc("/auth/", handleAuth)
-	http.HandleFunc("/storage/", handleStorage)
-	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir(resourcesPath + "/css"))))
+	http.HandleFunc(AUTH_PATH, handleAuth)
+	http.HandleFunc(STORAGE_PATH, handleStorage)
+	http.Handle(GORS_PATH+"/css/", http.StripPrefix(GORS_PATH+"/css/", http.FileServer(http.Dir(resourcesPath + "/css"))))
 	err := http.ListenAndServe(":" + strconv.Itoa(port), nil)
 	if err != nil {
 		log.Fatal(err)
@@ -66,7 +69,7 @@ func StartServer(storageDir string, storageModePara StorageMode, chownPara strin
 
 /* ------------------------------------ Storage ----------------------------- */
 
-var STORAGE_PATH_PATTERN = regexp.MustCompile("^/storage/([^/]+)(/.*)$")
+var STORAGE_PATH_PATTERN = regexp.MustCompile("^"+STORAGE_PATH+"([^/]+)(/.*)$")
 
 func handleStorage(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w, r)
@@ -83,6 +86,8 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 
 	username := pathParts[1]
 	pathInUserStorage := pathParts[2]
+
+	fmt.Println("Username: "+username)
 
 	if !isAuthorized(r, pathInUserStorage) {
 		w.WriteHeader(401)
@@ -136,7 +141,7 @@ func getAuthorization(r *http.Request, pathInUserStorage string) *Authorization 
 	}
 
 	// is Bearer Token valid for user?
-	if !strings.HasPrefix(r.URL.Path, "/storage/" + authorization.username) {
+	if !strings.HasPrefix(r.URL.Path, STORAGE_PATH + authorization.username) {
 		fmt.Println("Token  " + bearerToken + " is invalid for path " + r.URL.Path)
 		return nil;
 	}
@@ -398,9 +403,10 @@ func userGorsDir(username string) string {
 /* ------------------------------------ Auth ----------------------------- */
 
 var authorizationByBearer = make(map[string]*Authorization)
+var AUTH_PATH = GORS_PATH+"/auth/"
 
 func handleAuth(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Path[len("/auth/"):]
+	username := r.URL.Path[len(AUTH_PATH):]
 	query := r.URL.Query()
 	scopes := parseScopes(query["scope"][0])
 	wrongPassword := false
@@ -478,12 +484,12 @@ func createWebfingerJson(host, username string) string {
 	b, _ := json.Marshal(map[string]interface{}{
 		"links": []interface{}{
 			map[string]interface{} {
-				"href": baseURL + "/storage/" + username,
+				"href": baseURL + STORAGE_PATH + username,
 				"rel": "remoteStorage",
 				"type":"https://www.w3.org/community/rww/wiki/read-write-web-00#simple",
 				"properties": map[string]string{
 					"auth-method": "https://tools.ietf.org/html/draft-ietf-oauth-v2-26#section-4.2",
-					"auth-endpoint":  baseURL + "/auth/" + username,
+					"auth-endpoint":  baseURL + AUTH_PATH + username,
 				},
 			},
 		},

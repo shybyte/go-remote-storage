@@ -1,17 +1,17 @@
 TODO:
-- better path structure for easier integration with reverse proxy
-- compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
 - test with https apache reverse proxy
 - add speed tests, test speed on raspberry pi
 - deb package
     - base
     - home folder service
     - own cloud service
+- compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
 - support multiple If-None-Match, If-Match, http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
 
 Ideas:
     - Support several password hash functions? sha3? Is sha512 really secure?
     - Create user dir on first request (ask for password)
+    - helper to create file structure and password
 
 Done:
 - configure path and port
@@ -39,3 +39,4 @@ Done:
     - to predefined user name (configurable)
     - apply while creating nested paths
     - to bearer token username (@)
+- better path structure (app path "gors") for easier integration with reverse proxy
