@@ -7,7 +7,7 @@ import shutil
 import os
 import pytest
 
-#port = "8889"
+#port = "8888"
 port = "80"
 server = "http://localhost:"+port
 #username = "user1"

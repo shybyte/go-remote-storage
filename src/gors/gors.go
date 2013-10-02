@@ -99,7 +99,7 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 			handleGetFile(w, r, filename)
 		}
 	case "PUT":
-		handlePutFile(w, r, userStoragePath, pathInUserStorage)
+		handlePutFile(w, r, userStoragePath, pathInUserStorage, username)
 	case "DELETE":
 		handleDeleteFile(w, r, userStoragePath, pathInUserStorage)
 	default:
@@ -214,7 +214,7 @@ func handleGetFile(w http.ResponseWriter, r *http.Request, filename string) {
 	http.ServeContent(w, r, fInfo.Name(), fInfo.ModTime(), f)
 }
 
-func handlePutFile(w http.ResponseWriter, r *http.Request, userStoragePath string, pathInUserStorage string) {
+func handlePutFile(w http.ResponseWriter, r *http.Request, userStoragePath string, pathInUserStorage string, username string) {
 	filename := userStoragePath + pathInUserStorage;
 
 	if needs412Response(r, filename) {
@@ -222,7 +222,7 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, userStoragePath strin
 		return;
 	}
 
-	ensurePath(filename)
+	ensurePath(filename, username)
 	f, err := os.Create(filename)
 	if err != nil {
 		fmt.Println("Error", err)
@@ -232,19 +232,21 @@ func handlePutFile(w http.ResponseWriter, r *http.Request, userStoragePath strin
 	defer f.Close()
 	io.Copy(f, r.Body)
 	err = ioutil.WriteFile(contentTypeFilename(filename), []byte(r.Header.Get("Content-Type")), 0644)
-	chownIfNeeded(contentTypeFilename(filename));
+	chownIfNeeded(contentTypeFilename(filename), username);
 	markAncestorFoldersAsModified(userStoragePath, pathInUserStorage)
-	chownAncestorFoldersIfNeeded(userStoragePath, pathInUserStorage)
+	chownAncestorFoldersIfNeeded(userStoragePath, pathInUserStorage, username)
 	addETag(w, filename)
-	chownIfNeeded(filename);
+	chownIfNeeded(filename, username);
 	w.WriteHeader(200)
 }
 
-func chownIfNeeded(filename string) {
-	if chown == "" || chown == "*" {
+func chownIfNeeded(filename string, username string) {
+	if chown == "" {
 		return;
+	} else if (chown != "@") {
+		username = chown
 	}
-	user, err := user.Lookup(chown)
+	user, err := user.Lookup(username)
 	fmt.Println("Chown ", filename, user, err)
 	if err != nil {
 		fmt.Println("Error while chown. Can't find user:", err)
@@ -257,9 +259,9 @@ func chownIfNeeded(filename string) {
 	}
 }
 
-func chownAncestorFoldersIfNeeded(basePath, modifiedPath string) {
+func chownAncestorFoldersIfNeeded(basePath, modifiedPath string, username string) {
 	forAllAncestorFolders(basePath, modifiedPath, func(path string) {
-			chownIfNeeded(path)
+			chownIfNeeded(path, username)
 		})
 }
 
@@ -361,10 +363,10 @@ func removeEmptyAncestorFolders(basePath, path string) {
 	}
 }
 
-func ensurePath(filename string) {
+func ensurePath(filename string, username string) {
 	path := filename[:strings.LastIndex(filename, "/")]
 	os.MkdirAll(path, os.ModePerm)
-	chownIfNeeded(path)
+	chownIfNeeded(path, username)
 }
 
 func exists(path string) (bool, error) {
