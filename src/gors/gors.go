@@ -247,7 +247,6 @@ func chownIfNeeded(filename string, username string) {
 		username = chown
 	}
 	user, err := user.Lookup(username)
-	fmt.Println("Chown ", filename, user, err)
 	if err != nil {
 		fmt.Println("Error while chown. Can't find user:", err)
 	}
@@ -255,9 +254,11 @@ func chownIfNeeded(filename string, username string) {
 	gid, _ := strconv.Atoi(user.Gid)
 	err = os.Chown(filename, uid, gid)
 	if err != nil {
-		fmt.Println("Error while chown:", err)
+		fmt.Println("Error while chown:", err, user)
 	}
 }
+
+
 
 func chownAncestorFoldersIfNeeded(basePath, modifiedPath string, username string) {
 	forAllAncestorFolders(basePath, modifiedPath, func(path string) {
