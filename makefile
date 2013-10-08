@@ -17,3 +17,6 @@ run-owncloud: build
 
 run-home: build
 	sudo ./bin/main -storage tmp/storage  -mode home -port 8888 -chown @ -resources src
+
+run: build
+	./bin/main -storage tmp/storage  -mode home -port 8888 -resources src

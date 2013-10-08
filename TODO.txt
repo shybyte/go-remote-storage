@@ -1,5 +1,8 @@
 TODO:
 - test with https apache reverse proxy
+    - http://wiki.ubuntuusers.de/Apache/SSL
+    - add flag "url" to specify external base url
+- test on raspberry pi
 - add speed tests, test speed on raspberry pi
 - deb package
     - base
@@ -8,10 +11,17 @@ TODO:
 - compare with other implementations (owncloud, example-server, 5apps) especially for versioning stuff
 - support multiple If-None-Match, If-Match, http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
 
+Problems:
+    - CORS, Chrome, self signed certificates
+        - http://stackoverflow.com/questions/15115746/why-chrome-cancel-cors-option-request
+        - https://code.google.com/p/chromium/issues/detail?id=141839
+
+
 Ideas:
     - Support several password hash functions? sha3? Is sha512 really secure?
     - Create user dir on first request (ask for password)
-    - helper to create file structure and password
+    - Helper to create file structure and password ?
+    - Test with spdy reverse proxy
 
 Done:
 - configure path and port

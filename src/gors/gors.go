@@ -45,22 +45,25 @@ type Authorization struct {
 }
 
 const GORS_PATH = "/gors"
-var STORAGE_PATH = GORS_PATH+"/storage/"
+
+var STORAGE_PATH = GORS_PATH + "/storage/"
 
 var dataPath string
 var storageMode StorageMode
 var chown string
 var resourcesPath string
+var externalBaseUrl string
 
-func StartServer(storageDir string, storageModePara StorageMode, chownPara string, resourcesPathPara string, port int) {
+func StartServer(storageDir string, storageModePara StorageMode, chownPara string, resourcesPathPara string, port int, externalBaseUrlPara string) {
 	dataPath = storageDir
 	storageMode = storageModePara
 	chown = chownPara
 	resourcesPath = resourcesPathPara
+	externalBaseUrl = externalBaseUrlPara
 	http.HandleFunc("/.well-known/host-meta.json", handleWebfinger)
 	http.HandleFunc(AUTH_PATH, handleAuth)
 	http.HandleFunc(STORAGE_PATH, handleStorage)
-	http.Handle(GORS_PATH+"/css/", http.StripPrefix(GORS_PATH+"/css/", http.FileServer(http.Dir(resourcesPath + "/css"))))
+	http.Handle(GORS_PATH + "/css/", http.StripPrefix(GORS_PATH + "/css/", http.FileServer(http.Dir(resourcesPath + "/css"))))
 	err := http.ListenAndServe(":" + strconv.Itoa(port), nil)
 	if err != nil {
 		log.Fatal(err)
@@ -69,7 +72,7 @@ func StartServer(storageDir string, storageModePara StorageMode, chownPara strin
 
 /* ------------------------------------ Storage ----------------------------- */
 
-var STORAGE_PATH_PATTERN = regexp.MustCompile("^"+STORAGE_PATH+"([^/]+)(/.*)$")
+var STORAGE_PATH_PATTERN = regexp.MustCompile("^" + STORAGE_PATH + "([^/]+)(/.*)$")
 
 func handleStorage(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w, r)
@@ -86,8 +89,6 @@ func handleStorage(w http.ResponseWriter, r *http.Request) {
 
 	username := pathParts[1]
 	pathInUserStorage := pathParts[2]
-
-	fmt.Println("Username: "+username)
 
 	if !isAuthorized(r, pathInUserStorage) {
 		w.WriteHeader(401)
@@ -142,7 +143,7 @@ func getAuthorization(r *http.Request, pathInUserStorage string) *Authorization 
 
 	// is Bearer Token valid for user?
 	if !strings.HasPrefix(r.URL.Path, STORAGE_PATH + authorization.username) {
-		fmt.Println("Token  " + bearerToken + " is invalid for path " + r.URL.Path)
+		fmt.Println("Token  " + bearerToken + " is invalid for path " + r.URL.Path + "and username " + authorization.username)
 		return nil;
 	}
 
@@ -403,7 +404,7 @@ func userGorsDir(username string) string {
 /* ------------------------------------ Auth ----------------------------- */
 
 var authorizationByBearer = make(map[string]*Authorization)
-var AUTH_PATH = GORS_PATH+"/auth/"
+var AUTH_PATH = GORS_PATH + "/auth/"
 
 func handleAuth(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Path[len(AUTH_PATH):]
@@ -469,7 +470,21 @@ func handleWebfinger(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Println(r)
 	username := RESOURCE_PARA_PATTERN.FindStringSubmatch(r.URL.Query()["resource"][0])[1]
-	fmt.Fprintf(w, createWebfingerJson(getOwnHost(r), username))
+	fmt.Fprintf(w, createWebfingerJson(getBaseUrl(r), username))
+}
+
+func getBaseUrl(r *http.Request) string {
+	if externalBaseUrl != "" {
+		return externalBaseUrl
+	}
+	return getUsedProtocol(r) + "://" + getOwnHost(r)
+}
+
+func getUsedProtocol(r *http.Request) string {
+	if strings.HasSuffix(getOwnHost(r), ":443") {
+		return "https"
+	}
+	return "http"
 }
 
 func getOwnHost(r *http.Request) string {
@@ -479,8 +494,7 @@ func getOwnHost(r *http.Request) string {
 	return r.Host
 }
 
-func createWebfingerJson(host, username string) string {
-	baseURL := "http://" + host
+func createWebfingerJson(baseURL, username string) string {
 	b, _ := json.Marshal(map[string]interface{}{
 		"links": []interface{}{
 			map[string]interface{} {
@@ -501,11 +515,13 @@ func createWebfingerJson(host, username string) string {
 
 func enableCORS(w http.ResponseWriter, r *http.Request) {
 	var origin string
-	if len(r.Header["origin"]) > 0 {
-		origin = r.Header["origin"][0]
+	if len(r.Header["Origin"]) > 0 {
+		origin = r.Header["Origin"][0]
 	} else {
 		origin = "*"
 	}
+	//fmt.Println(r);
+	//fmt.Println("Origin:" + origin);
 	header := w.Header()
 	header.Add("access-control-allow-origin", origin)
 	header.Add("access-control-allow-headers", "content-type, authorization, origin")

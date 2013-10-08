@@ -7,11 +7,15 @@ import shutil
 import os
 import pytest
 
-port = "8889"
+#port = "8889"
 #port = "80"
-server = "http://localhost:"+port
+port = "443"
+protocol = "https"
+host = "localhost"
+server = protocol+"://"+host+":"+port
 username = "user1"
 #username = "marco"
+#username = "shybyte"
 
 
 
@@ -50,7 +54,7 @@ def test_confirm_permission_with_password_and_redirect_to_app():
 	data = urllib.urlencode(values)
 	headers = {"Content-type": "application/x-www-form-urlencoded",
             "Accept": "text/plain"}	
-	conn = httplib.HTTPConnection('localhost:'+port)
+	conn = getConnection()
 	conn.request("POST", "/gors/auth/user1"+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope=myfavoritedrinks%3Arw&response_type=token",data,headers)
 	r = conn.getresponse()
 	print r.status, r.reason
@@ -60,7 +64,7 @@ def test_confirm_permission_with_password_and_redirect_to_app():
 	assert len(redirectUrl[len(expectedRedirectUrlPrefix):])>=10
 
 def test_storage_cors():
-	conn = httplib.HTTPConnection('localhost:'+port)
+	conn = getConnection()
 	conn.request("OPTIONS", "/gors/storage/user1/myfavoritedrinks/")
 	r = conn.getresponse()
 	assert r.status == 200;
@@ -86,6 +90,7 @@ def test_storage_directory_listing_needs_bearer_token_matching_user(givenTestSto
 	
 def test_storage_directory_listing_needs_bearer_token_matching_scopes(givenTestStorage):
 	bearerToken = requestBearerToken()
+	print("Bearer:"+bearerToken)
 	r = makeRequest("/storage/user1/other-module/",'GET',bearerToken)
 	assert r.status == 401;		
 	r = makeRequest("/storage/user1/module/",'GET',bearerToken)
@@ -97,18 +102,28 @@ def test_storage_directory_listing_needs_bearer_token_matching_scopes(givenTestS
 def test_storage_prevent_attempt_to_hack_path(givenTestStorage):
 	# don't know if this is correct behaviour, but at least you can't hack the server that easily
 	bearerToken = requestBearerToken()
-	r = makeRequest("/storage/user1/module/../other-module",'GET',bearerToken)
-	redirectUrl = r.getheader('Location')
-	assert redirectUrl == "/gors/storage/user1/other-module"
-	assert r.status == 301;		
-	r = makeRequest("/storage/user1/module/../../../../../other-module",'GET',bearerToken)
-	redirectUrl = r.getheader('Location')
-	assert redirectUrl == "/other-module"
-	assert r.status == 301;		
-	r = makeRequest("/storage/user1/module/../other-module",'PUT',bearerToken)
-	assert r.status == 301;		
-	r = makeRequest("/storage/user1/module/../other-module",'DELETE',bearerToken)
-	assert r.status == 301;		
+	r = makeRequest("/storage/user1/module/../other-module",'GET',bearerToken)	
+	if r.status == 401:
+		# if we use apache as reverse proxy we get this behaviour
+		r = makeRequest("/storage/user1/module/../../../../../other-module",'GET',bearerToken)
+		assert r.status == 400;		
+		r = makeRequest("/storage/user1/module/../other-module",'PUT',bearerToken)
+		assert r.status == 401;		
+		r = makeRequest("/storage/user1/module/../other-module",'DELETE',bearerToken)
+		assert r.status == 401;		
+	else:		
+		assert r.status == 301;		
+		redirectUrl = r.getheader('Location')
+		assert redirectUrl == "/gors/storage/user1/other-module"
+		assert r.status == 301;		
+		r = makeRequest("/storage/user1/module/../../../../../other-module",'GET',bearerToken)
+		redirectUrl = r.getheader('Location')
+		assert redirectUrl == "/other-module"
+		assert r.status == 301;		
+		r = makeRequest("/storage/user1/module/../other-module",'PUT',bearerToken)
+		assert r.status == 301;		
+		r = makeRequest("/storage/user1/module/../other-module",'DELETE',bearerToken)
+		assert r.status == 301;		
 	
 	
 
@@ -294,11 +309,18 @@ def test_storage_delete_with_IF_MATCH_header(givenTestStorage):
 	assert r.status == 412
 
 # utils
+
+def getConnection():
+	if protocol == "https":
+		return httplib.HTTPSConnection(host+':'+port)
+	else:
+		return httplib.HTTPConnection(host+':'+port)
+
 def requestBearerToken(mode="rw",scopes=['module:rw']):
 	values = {'password' : 'password'}
 	data = urllib.urlencode(values)
 	headers = {"Content-type": "application/x-www-form-urlencoded"}	
-	conn = httplib.HTTPConnection('localhost:'+port)
+	conn = getConnection()
 	scopesString = "%20".join(scopes).replace(":","%3A")
 	conn.request("POST", "/gors/auth/"+username+"?redirect_uri=https%3A%2F%2Fmyfavoritedrinks.5apps.com%2F&client_id=myfavoritedrinks.5apps.com&scope="+scopesString+"&response_type=token",data,headers)
 	r = conn.getresponse()		
@@ -309,7 +331,7 @@ def requestBearerToken(mode="rw",scopes=['module:rw']):
 
 # headers = {} does not work because of http://stackoverflow.com/questions/1132941/least-astonishment-in-python-the-mutable-default-argument
 def makeRequest(path,method="GET",bearerToken=None,data="",contentType=None,headers=None):
-	conn = httplib.HTTPConnection('localhost:'+port)
+	conn = getConnection()
 	if not headers:		
 		headers = {}
 	if bearerToken:
