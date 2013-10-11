@@ -7,10 +7,10 @@ import shutil
 import os
 import pytest
 
-#port = "8889"
+port = "8888"
 #port = "80"
-port = "443"
-protocol = "https"
+#port = "443"
+protocol = "http"
 host = "localhost"
 server = protocol+"://"+host+":"+port
 username = "user1"
@@ -158,7 +158,7 @@ def test_storage_directory_listing_with_versioning(givenTestStorage):
 	assert r.status == 200
 	etag = r.getheader('ETag')
 	r = makeRequest("/storage/user1/module/",'GET',bearerToken,headers={'If-None-Match': etag})	
-	assert r.status == 412
+	assert r.status == 304
 	r = makeRequest("/storage/user1/module/",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
 	assert r.status == 200	
 	r = makeRequest("/storage/user1/module/new/",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
@@ -178,7 +178,7 @@ def test_storage_read_data_with_versioning(givenTestStorage):
 	assert r.status == 200
 	etag = r.getheader('ETag')
 	r = makeRequest("/storage/user1/module/file.txt",'GET',bearerToken,headers={'If-None-Match': etag})	
-	assert r.status == 412
+	assert r.status == 304
 	r = makeRequest("/storage/user1/module/file.txt",'GET',bearerToken,headers={'If-None-Match': "invalid"})	
 	fileContent = r.read()
 	assert r.status == 200

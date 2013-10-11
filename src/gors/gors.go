@@ -161,8 +161,8 @@ func getAuthorization(r *http.Request, pathInUserStorage string) *Authorization 
 }
 
 func handleDirectoryListing(w http.ResponseWriter, r *http.Request, dirName string) {
-	if needs412Response(r, dirName) {
-		w.WriteHeader(412)
+	if needs304Response(r, dirName) {
+		w.WriteHeader(304)
 		return;
 	}
 
@@ -202,8 +202,8 @@ func ignoreMetaFiles(files []os.FileInfo) []os.FileInfo {
 }
 
 func handleGetFile(w http.ResponseWriter, r *http.Request, filename string) {
-	if needs412Response(r, filename) {
-		w.WriteHeader(412)
+	if needs304Response(r, filename) {
+		w.WriteHeader(304)
 		return;
 	}
 
@@ -272,29 +272,27 @@ func chownAncestorFoldersIfNeeded(basePath, modifiedPath string, username string
 		})
 }
 
-
+func needs304Response(r *http.Request, filename string) bool {
+	if ifNoneMatch := r.Header.Get("If-None-Match"); len(ifNoneMatch) > 0 {
+		fInfo, err := os.Stat(filename)
+		if (err == nil && getETag(fInfo) == ifNoneMatch) {
+			return true
+		}
+	}
+	return false
+}
 
 func needs412Response(r *http.Request, filename string) bool {
-	switch r.Method {
-	case "GET":
-		if ifNoneMatch := r.Header.Get("If-None-Match"); len(ifNoneMatch) > 0 {
-			fInfo, err := os.Stat(filename)
-			if (err == nil && getETag(fInfo) == ifNoneMatch) {
-				return true
-			}
+	if ifMatch := r.Header.Get("If-Match"); len(ifMatch) > 0 {
+		fInfo, err := os.Stat(filename)
+		if (err != nil || getETag(fInfo) != ifMatch) {
+			return true
 		}
-	case "PUT", "DELETE":
-		if ifMatch := r.Header.Get("If-Match"); len(ifMatch) > 0 {
-			fInfo, err := os.Stat(filename)
-			if (err != nil || getETag(fInfo) != ifMatch) {
-				return true
-			}
-		}
-		if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch == "*" {
-			_, err := os.Stat(filename)
-			if (err == nil) {
-				return true
-			}
+	}
+	if ifNoneMatch := r.Header.Get("If-None-Match"); ifNoneMatch == "*" {
+		_, err := os.Stat(filename)
+		if (err == nil) {
+			return true
 		}
 	}
 	return false

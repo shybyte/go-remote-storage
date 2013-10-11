@@ -1,7 +1,4 @@
 TODO:
-- test with https apache reverse proxy
-    - http://wiki.ubuntuusers.de/Apache/SSL
-    - add flag "url" to specify external base url
 - test on raspberry pi
 - add speed tests, test speed on raspberry pi
 - deb package
@@ -12,10 +9,6 @@ TODO:
 - support multiple If-None-Match, If-Match, http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
 
 Problems:
-    - CORS, Chrome, self signed certificates
-        - http://stackoverflow.com/questions/15115746/why-chrome-cancel-cors-option-request
-        - https://code.google.com/p/chromium/issues/detail?id=141839
-
 
 Ideas:
     - Support several password hash functions? sha3? Is sha512 really secure?
@@ -50,3 +43,15 @@ Done:
     - apply while creating nested paths
     - to bearer token username (@)
 - better path structure (app path "gors") for easier integration with reverse proxy
+- test with https apache reverse proxy
+    - http://wiki.ubuntuusers.de/Apache/SSL
+    - add flag "url" to specify external base url
+    - Solve problem: CORS, Chrome, self signed certificates
+        - http://stackoverflow.com/questions/15115746/why-chrome-cancel-cors-option-request
+        - https://code.google.com/p/chromium/issues/detail?id=141839
+        - http://code.google.com/p/chromium/wiki/LinuxCertManagement
+        - Solution:
+            1. Export from Chrome
+            2. certutil -d sql:$HOME/.pki/nssdb -A -t "P,," -n <certificate nickname> -i <certificate filename>
+- Better handling of former 412: https://github.com/remotestorage/spec/issues/23#issuecomment-20686517
+    - Handle with 304 for GET requests
