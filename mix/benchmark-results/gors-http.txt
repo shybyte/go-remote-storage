@@ -1,0 +1,43 @@
+This is ApacheBench, Version 2.3 <$Revision: 655654 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking auerpi.no-ip.biz (be patient).....done
+
+
+Server Software:        
+Server Hostname:        auerpi.no-ip.biz
+Server Port:            8888
+
+Document Path:          /gors/storage/shybyte/myfavoritedrinks/green-tea
+Document Length:        96 bytes
+
+Concurrency Level:      10
+Time taken for tests:   0.554 seconds
+Complete requests:      20
+Failed requests:        0
+Write errors:           0
+Total transferred:      9460 bytes
+HTML transferred:       1920 bytes
+Requests per second:    36.12 [#/sec] (mean)
+Time per request:       276.834 [ms] (mean)
+Time per request:       27.683 [ms] (mean, across all concurrent requests)
+Transfer rate:          16.69 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        5   33  41.3     22     144
+Processing:    17  211  78.1    248     264
+Waiting:       14  177  96.9    239     255
+Total:         22  244  84.4    271     379
+
+Percentage of the requests served within a certain time (ms)
+  50%    271
+  66%    276
+  75%    278
+  80%    279
+  90%    280
+  95%    379
+  98%    379
+  99%    379
+ 100%    379 (longest request)

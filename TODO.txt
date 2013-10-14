@@ -1,7 +1,6 @@
 TODO:
-- test on raspberry pi
-- add speed tests, test speed on raspberry pi
 - deb package
+    - run as service script
     - base
     - home folder service
     - own cloud service
@@ -15,6 +14,7 @@ Ideas:
     - Create user dir on first request (ask for password)
     - Helper to create file structure and password ?
     - Test with spdy reverse proxy
+    - Test with nginx
 
 Done:
 - configure path and port
@@ -45,6 +45,8 @@ Done:
 - better path structure (app path "gors") for easier integration with reverse proxy
 - test with https apache reverse proxy
     - http://wiki.ubuntuusers.de/Apache/SSL
+    - https://www.digitalocean.com/community/articles/how-to-create-a-ssl-certificate-on-apache-for-ubuntu-12-04
+        - sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/apache2/ssl/apache.key -out /etc/apache2/ssl/apache.crt
     - add flag "url" to specify external base url
     - Solve problem: CORS, Chrome, self signed certificates
         - http://stackoverflow.com/questions/15115746/why-chrome-cancel-cors-option-request
@@ -55,3 +57,10 @@ Done:
             2. certutil -d sql:$HOME/.pki/nssdb -A -t "P,," -n <certificate nickname> -i <certificate filename>
 - Better handling of former 412: https://github.com/remotestorage/spec/issues/23#issuecomment-20686517
     - Handle with 304 for GET requests
+- test on raspberry pi
+    - https://wiki.debian.org/NetworkConfiguration
+    - http://elinux.org/RPi_Setting_up_a_static_IP_in_Debian
+- add speed tests, test speed on raspberry pi
+    - test owncloud speed
+    - test gors speed
+    - compare

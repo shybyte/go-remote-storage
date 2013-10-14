@@ -1,0 +1,1 @@
+ab -n 20 -c 10 -H "Authorization: Bearer NmY3MDBjMTU3MmU1NTA5MGQxMzc5ZWM3MjRjYmFkYmQ1YTUxY2RiMQ==" "http://raspberrypi.local:8012/?user=marco&path=/myfavoritedrinks/red-wine" >benchmark-results/owncloud-owa.txt

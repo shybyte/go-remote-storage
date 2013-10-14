@@ -1,0 +1,43 @@
+This is ApacheBench, Version 2.3 <$Revision: 655654 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking raspberrypi.local (be patient).....done
+
+
+Server Software:        Apache/2.2.22
+Server Hostname:        raspberrypi.local
+Server Port:            8012
+
+Document Path:          /?user=marco&path=/myfavoritedrinks/red-wine
+Document Length:        95 bytes
+
+Concurrency Level:      10
+Time taken for tests:   19.245 seconds
+Complete requests:      20
+Failed requests:        0
+Write errors:           0
+Total transferred:      15840 bytes
+HTML transferred:       1900 bytes
+Requests per second:    1.04 [#/sec] (mean)
+Time per request:       9622.457 [ms] (mean)
+Time per request:       962.246 [ms] (mean, across all concurrent requests)
+Transfer rate:          0.80 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        4   25  45.1      9     155
+Processing:  8787 9507 654.6   9488   10427
+Waiting:     8786 9503 656.1   9487   10425
+Total:       8793 9532 653.9   9575   10431
+
+Percentage of the requests served within a certain time (ms)
+  50%   9575
+  66%  10257
+  75%  10312
+  80%  10319
+  90%  10386
+  95%  10431
+  98%  10431
+  99%  10431
+ 100%  10431 (longest request)
